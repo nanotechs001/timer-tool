@@ -4,6 +4,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { BrandLogo } from "@/components/brand-logo";
+import { InlineSpinner } from "@/components/inline-spinner";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export function LoginForm() {
@@ -12,6 +13,8 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Shown after Supabase accepts credentials while Next.js navigates (can take several seconds). */
+  const [loginSuccess, setLoginSuccess] = useState(false);
 
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
@@ -62,6 +65,7 @@ export function LoginForm() {
         next.startsWith("/") &&
         !next.startsWith("//") &&
         !next.startsWith("/api/");
+      setLoginSuccess(true);
       router.push(safe ? next : "/dashboard");
       router.refresh();
     } catch (err) {
@@ -72,57 +76,79 @@ export function LoginForm() {
   }
 
   return (
-    <div className="flex w-full max-w-md flex-col items-center gap-6">
-      <div className="flex w-full items-center justify-between gap-4">
-        <div className="flex min-w-0 flex-1 justify-center sm:justify-start">
-          <BrandLogo priority />
-        </div>
-        <ThemeToggle />
-      </div>
-      <form
-        onSubmit={onSubmit}
-        className="w-full space-y-4 rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-surface"
-      >
-        <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">Admin sign in</p>
-        {error ? (
-          <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800 dark:bg-red-950/50 dark:text-red-200">
-            {error}
-          </p>
-        ) : null}
-        <label className="block text-sm">
-          <span className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
-            Email
-          </span>
-          <input
-            type="email"
-            autoComplete="email"
-            required
-            className="w-full rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
-            Password
-          </span>
-          <input
-            type="password"
-            autoComplete="current-password"
-            required
-            className="w-full rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </label>
-        <button
-          type="submit"
-          disabled={busy}
-          className="w-full rounded-xl bg-brand py-2.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+    <>
+      {loginSuccess ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-white/90 p-6 backdrop-blur-sm dark:bg-zinc-950/90"
+          role="status"
+          aria-live="polite"
+          aria-label="Signed in, loading app"
         >
-          {busy ? "Signing in…" : "Sign in"}
-        </button>
-      </form>
-    </div>
+          <div className="flex max-w-sm flex-col items-center gap-5 rounded-2xl border border-zinc-200 bg-white px-10 py-12 text-center shadow-lg dark:border-zinc-800 dark:bg-surface">
+            <InlineSpinner className="scale-[1.75]" />
+            <div className="space-y-1">
+              <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                Signed in successfully
+              </p>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                Loading your workspace… this can take a few seconds.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      <div className="flex w-full max-w-md flex-col items-center gap-6">
+        <div className="flex w-full items-center justify-between gap-4">
+          <div className="flex min-w-0 flex-1 justify-center sm:justify-start">
+            <BrandLogo priority />
+          </div>
+          <ThemeToggle />
+        </div>
+        <form
+          onSubmit={onSubmit}
+          className="w-full space-y-4 rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-surface"
+        >
+          <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">Admin sign in</p>
+          {error ? (
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800 dark:bg-red-950/50 dark:text-red-200">
+              {error}
+            </p>
+          ) : null}
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
+              Email
+            </span>
+            <input
+              type="email"
+              autoComplete="email"
+              required
+              className="w-full rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
+              Password
+            </span>
+            <input
+              type="password"
+              autoComplete="current-password"
+              required
+              className="w-full rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={busy}
+            className="w-full rounded-xl bg-brand py-2.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+          >
+            {busy ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
+      </div>
+    </>
   );
 }
