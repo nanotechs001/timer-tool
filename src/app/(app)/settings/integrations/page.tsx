@@ -6,8 +6,7 @@ import {
   isClickUpTableAvailable,
 } from "@/lib/clickup/store";
 import { IntegrationsClickUpPanel } from "@/components/integrations-clickup-panel";
-import { isUserAdmin } from "@/lib/profiles";
-import { getSessionUser } from "@/lib/supabase/server";
+import { getViewerIsAdmin, requireViewer } from "@/lib/viewer";
 import { headers } from "next/headers";
 
 type Props = { searchParams: Promise<{ clickup?: string }> };
@@ -15,11 +14,8 @@ type Props = { searchParams: Promise<{ clickup?: string }> };
 export default async function IntegrationsPage({ searchParams }: Props) {
   const sp = await searchParams;
   const oauth = isClickUpOAuthConfigured();
-  const user = await getSessionUser();
-  if (!user?.id) {
-    redirect("/");
-  }
-  if (!(await isUserAdmin(user.id))) {
+  const user = await requireViewer();
+  if (!(await getViewerIsAdmin())) {
     redirect("/dashboard");
   }
   const clickupTableReady = await isClickUpTableAvailable();

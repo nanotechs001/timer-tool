@@ -2,10 +2,7 @@ import { redirect } from "next/navigation";
 import { SetupBanner } from "@/components/setup-banner";
 import { AppNav } from "@/components/app-nav";
 import { isAuthConfigured } from "@/lib/config";
-import { isUserAdmin } from "@/lib/profiles";
-import { getSessionUser } from "@/lib/supabase/server";
-
-export const dynamic = "force-dynamic";
+import { getViewerIsAdmin, requireViewer } from "@/lib/viewer";
 
 export default async function AppLayout({
   children,
@@ -16,13 +13,9 @@ export default async function AppLayout({
     redirect("/?error=auth_config");
   }
 
-  const user = await getSessionUser().catch(() => null);
-  if (!user) {
-    redirect("/");
-  }
-
+  const user = await requireViewer();
   const userEmail = user.email ?? null;
-  const isAdmin = await isUserAdmin(user.id);
+  const isAdmin = await getViewerIsAdmin();
 
   return (
     <>

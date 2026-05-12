@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { isDatabaseConfigured, publicAppUrl } from "@/lib/config";
 import { listClients, listReports } from "@/lib/ledger";
-import { isUserAdmin } from "@/lib/profiles";
-import { getSessionUser } from "@/lib/supabase/server";
+import { getViewerIsAdmin } from "@/lib/viewer";
 import { WorkSummariesTable } from "@/components/work-summaries-table";
 
 export default async function DashboardPage() {
@@ -30,8 +29,7 @@ export default async function DashboardPage() {
     client: rep.clientId ? (clientById.get(rep.clientId) ?? null) : null,
   }));
 
-  const user = await getSessionUser().catch(() => null);
-  const isAdmin = user?.id ? await isUserAdmin(user.id) : false;
+  const isAdmin = await getViewerIsAdmin();
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">

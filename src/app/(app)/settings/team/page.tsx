@@ -1,16 +1,11 @@
 import { redirect } from "next/navigation";
 import { TeamSettingsPanel } from "@/components/team-settings-panel";
-import { isUserAdmin } from "@/lib/profiles";
-import { getSessionUser } from "@/lib/supabase/server";
+import { getViewerIsAdmin, requireViewer } from "@/lib/viewer";
 
 export default async function TeamSettingsPage() {
-  const user = await getSessionUser();
-  if (!user?.id) {
-    redirect("/");
-  }
-  if (!(await isUserAdmin(user.id))) {
-    redirect("/dashboard");
-  }
+  const user = await requireViewer();
+  const isAdmin = await getViewerIsAdmin();
+  if (!isAdmin) redirect("/dashboard");
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">

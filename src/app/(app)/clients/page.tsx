@@ -1,7 +1,6 @@
 import { isDatabaseConfigured } from "@/lib/config";
 import { listClients } from "@/lib/ledger";
-import { isUserAdmin } from "@/lib/profiles";
-import { getSessionUser } from "@/lib/supabase/server";
+import { getViewerIsAdmin } from "@/lib/viewer";
 import { ClientsManager } from "@/components/clients-manager";
 
 export default async function ClientsPage() {
@@ -20,8 +19,7 @@ export default async function ClientsPage() {
     clients = [];
   }
 
-  const user = await getSessionUser().catch(() => null);
-  const isAdmin = user?.id ? await isUserAdmin(user.id) : false;
+  const isAdmin = await getViewerIsAdmin();
 
   return <ClientsManager initialClients={clients} isAdmin={isAdmin} />;
 }
