@@ -5,8 +5,10 @@ import { getSupabaseAnonKey } from "@/lib/config";
 /**
  * Supabase Auth email confirmation / invite redirect target.
  * Add every origin you use to Supabase → Authentication → Redirect URLs, e.g.:
- * - http://localhost:3000/auth/callback
- * - http://127.0.0.1:3000/auth/callback
+ * - http://localhost:3000/  (invite `redirectTo` is the site root so `?code=` is visible to the server)
+ * - http://127.0.0.1:3000/
+ * - https://your-domain.com/
+ * Also allow `.../auth/callback` — the app forwards `/?code=` there to exchange the session.
  *
  * Session cookies must be set on the redirect response (not only on `cookies()`),
  * or the browser may never store the session and you can see a redirect / refresh loop.

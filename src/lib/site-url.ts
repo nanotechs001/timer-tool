@@ -38,5 +38,10 @@ export function getSiteOriginFromRequest(request: Request | NextRequest): string
 }
 
 export function authCallbackUrl(request: Request | NextRequest): string {
-  return `${getSiteOriginFromRequest(request)}/auth/callback`;
+  const origin = getSiteOriginFromRequest(request).replace(/\/$/, "");
+  // Use site **root** (not /auth/callback) so Supabase appends `?code=` to a URL the server can read.
+  // If the redirect target is `/auth/callback` and Supabase returns tokens only in the **hash**,
+  // the route handler runs without `code` (fragments are never sent to the server) and sign-in fails.
+  // Home (`/`) forwards `?code=` to `/auth/callback` for cookie exchange — see `src/app/page.tsx`.
+  return `${origin}/`;
 }

@@ -23,7 +23,7 @@ export function LoginForm() {
     }
     if (sp.get("error") === "auth") {
       setError(
-        "That sign-in link is invalid or expired. Ask an admin to send a new invite, and open the link on the same site where it was sent (production vs localhost)."
+        "That sign-in link did not include a valid session code (often expired, already used, or opened on a different URL than the invite). Fix: In Supabase → Authentication → Redirect URLs, allow your exact site root (e.g. https://your-app.com/) and redeploy with NEXT_PUBLIC_APP_URL set to that origin. Then ask an admin to send a new invite."
       );
       return;
     }
