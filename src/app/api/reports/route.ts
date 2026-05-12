@@ -14,16 +14,32 @@ type LineDraft = {
   id?: string;
   task: string;
   hours: number;
+  hoursWorked?: number;
   rate?: number;
   notes?: string;
 };
 
 function normalizeLineItems(items: LineDraft[]): LineItem[] {
-  return items.map((row) => ({
-    ...row,
-    id: row.id && row.id.length ? row.id : nanoid(10),
-    rate: row.rate ?? 0,
-  }));
+  return items.map((row) => {
+    const id = row.id && row.id.length ? row.id : nanoid(10);
+    const total = Math.max(0, Number(row.hours) || 0);
+    let worked: number | undefined;
+    if (row.hoursWorked !== undefined && row.hoursWorked !== null) {
+      const w = Number(row.hoursWorked);
+      if (Number.isFinite(w)) worked = Math.min(Math.max(0, w), total);
+    }
+    const base: LineItem = {
+      id,
+      task: row.task,
+      hours: total,
+      rate: row.rate ?? 0,
+      notes: row.notes,
+    };
+    if (worked !== undefined && worked < total) {
+      base.hoursWorked = worked;
+    }
+    return base;
+  });
 }
 
 export async function GET() {

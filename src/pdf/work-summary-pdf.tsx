@@ -1,7 +1,12 @@
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import type { Client, Report } from "@/lib/types";
-import { formatHours, formatReportPeriodLine } from "@/lib/format";
-import { totalHours } from "@/lib/types";
+import {
+  lineHoursProgressRatio,
+  lineHoursWorked,
+  totalPlannedHours,
+  totalWorkedHours,
+} from "@/lib/types";
+import { formatHours, formatReportPeriodLine, formatSummaryUpdatedAt } from "@/lib/format";
 
 const styles = StyleSheet.create({
   page: {
@@ -11,22 +16,43 @@ const styles = StyleSheet.create({
     color: "#111827",
   },
   brand: {
-    fontSize: 16,
+    fontSize: 10,
     fontFamily: "Helvetica-Bold",
-    marginBottom: 4,
     color: "#1433be",
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    marginBottom: 4,
   },
-  sub: { fontSize: 9, color: "#6b7280", marginBottom: 16 },
-  row: { flexDirection: "row", justifyContent: "space-between", marginBottom: 14 },
-  box: { width: "48%" },
-  h2: { fontSize: 11, fontFamily: "Helvetica-Bold", marginBottom: 6 },
-  muted: { color: "#6b7280", fontSize: 9 },
+  titleMain: {
+    fontSize: 18,
+    fontFamily: "Helvetica-Bold",
+    marginTop: 2,
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 20,
+    gap: 12,
+  },
+  headerLeft: { flexGrow: 1, flexShrink: 1, maxWidth: "58%", paddingRight: 8 },
+  headerRight: { width: "38%", alignItems: "flex-end" },
+  metaLine: { fontSize: 8, color: "#6b7280", textAlign: "right", marginBottom: 3 },
+  prepRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 16,
+    paddingBottom: 4,
+  },
+  prepBox: { width: "48%" },
+  prepH: { fontSize: 11, fontFamily: "Helvetica-Bold", marginBottom: 6, color: "#374151" },
+  prepMuted: { fontSize: 9, color: "#6b7280" },
   tableHead: {
     flexDirection: "row",
     borderBottomWidth: 1,
     borderBottomColor: "#e5e7eb",
     paddingBottom: 6,
-    marginTop: 8,
+    marginTop: 4,
   },
   th: { fontFamily: "Helvetica-Bold", fontSize: 9, color: "#374151" },
   tr: {
@@ -34,13 +60,34 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderBottomWidth: 0.5,
     borderBottomColor: "#f3f4f6",
+    alignItems: "flex-start",
   },
-  tdTask: { width: "62%" },
-  tdHours: { width: "15%", textAlign: "right" },
-  tdNotes: { width: "23%" },
+  tdTask: { width: "38%", paddingRight: 8 },
+  tdProgress: { width: "40%", paddingRight: 8 },
+  tdNotes: { width: "22%" },
+  progressFraction: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    textAlign: "right",
+    marginBottom: 4,
+    color: "#111827",
+  },
+  barTrack: {
+    height: 4,
+    backgroundColor: "#e5e7eb",
+    borderRadius: 2,
+    width: "100%",
+  },
+  barFill: {
+    height: 4,
+    backgroundColor: "#1433be",
+    borderRadius: 2,
+  },
   totals: { marginTop: 16, alignItems: "flex-end" },
-  grand: { fontSize: 12, fontFamily: "Helvetica-Bold" },
+  grand: { fontSize: 12, fontFamily: "Helvetica-Bold", color: "#1433be" },
+  grandSub: { fontSize: 8, color: "#6b7280", marginTop: 4 },
   notes: { marginTop: 20, fontSize: 9, color: "#4b5563" },
+  muted: { color: "#6b7280", fontSize: 8 },
 });
 
 type Props = {
@@ -49,69 +96,95 @@ type Props = {
 };
 
 export function WorkSummaryPdfDocument({ report, client }: Props) {
-  const hours = totalHours(report.lineItems);
+  const workedSum = totalWorkedHours(report.lineItems);
+  const plannedSum = totalPlannedHours(report.lineItems);
+  const lastUpdatedIso = report.updatedAt?.trim() || report.createdAt;
+  const periodLine = formatReportPeriodLine(report.issueDate, report.dueDate);
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <Text style={styles.brand}>Work summary</Text>
-        <Text style={styles.sub}>{formatReportPeriodLine(report.issueDate, report.dueDate)}</Text>
+        <View style={styles.headerRow}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.brand}>Work summary</Text>
+            <Text style={styles.titleMain}>{report.title}</Text>
+          </View>
+          <View style={styles.headerRight}>
+            {periodLine ? (
+              <Text style={styles.metaLine}>
+                Period: {periodLine}
+              </Text>
+            ) : null}
+            <Text style={styles.metaLine}>Last updated {formatSummaryUpdatedAt(lastUpdatedIso)}</Text>
+          </View>
+        </View>
 
-        <View style={styles.row}>
-          <View style={styles.box}>
-            <Text style={styles.h2}>Prepared by</Text>
+        <View style={styles.prepRow}>
+          <View style={styles.prepBox}>
+            <Text style={styles.prepH}>Prepared by</Text>
             <Text>{report.billFromName || "—"}</Text>
             {report.billFromEmail ? (
-              <Text style={styles.muted}>{report.billFromEmail}</Text>
+              <Text style={styles.prepMuted}>{report.billFromEmail}</Text>
             ) : null}
           </View>
-          <View style={styles.box}>
-            <Text style={styles.h2}>Client</Text>
+          <View style={styles.prepBox}>
+            <Text style={styles.prepH}>Client</Text>
             {client ? (
               <>
                 <Text>{client.name}</Text>
-                {client.company ? <Text style={styles.muted}>{client.company}</Text> : null}
+                {client.company ? <Text style={styles.prepMuted}>{client.company}</Text> : null}
               </>
             ) : (
-              <Text style={styles.muted}>—</Text>
+              <Text style={styles.prepMuted}>—</Text>
             )}
           </View>
         </View>
 
-        <Text style={styles.h2}>{report.title}</Text>
-        {report.createdByLabel?.trim() ? (
-          <Text style={[styles.muted, { marginTop: 6, marginBottom: 8 }]}>
-            Created by {report.createdByLabel.trim()}
-          </Text>
-        ) : null}
-
         <View style={styles.tableHead}>
           <Text style={[styles.th, styles.tdTask]}>Task</Text>
-          <Text style={[styles.th, styles.tdHours]}>Hours</Text>
+          <Text style={[styles.th, styles.tdProgress]}>Progress</Text>
           <Text style={[styles.th, styles.tdNotes]}>Notes</Text>
         </View>
 
-        {report.lineItems.map((item) => (
-          <View key={item.id} style={styles.tr} wrap={false}>
-            <Text style={styles.tdTask}>{item.task}</Text>
-            <Text style={styles.tdHours}>{formatHours(item.hours)}</Text>
-            <View style={styles.tdNotes}>
-              {item.notes ? (
-                <Text style={{ fontSize: 8 }}>{item.notes}</Text>
-              ) : (
-                <Text style={styles.muted}>—</Text>
-              )}
+        {report.lineItems.map((item) => {
+          const pct = lineHoursProgressRatio(item);
+          const worked = lineHoursWorked(item);
+          const total = item.hours;
+          return (
+            <View key={item.id} style={styles.tr} wrap={false}>
+              <Text style={styles.tdTask}>{item.task}</Text>
+              <View style={styles.tdProgress}>
+                <Text style={styles.progressFraction}>
+                  {formatHours(worked)} / {formatHours(total)} hrs
+                </Text>
+                <View style={styles.barTrack}>
+                  <View style={[styles.barFill, { width: `${pct}%` }]} />
+                </View>
+              </View>
+              <View style={styles.tdNotes}>
+                {item.notes ? (
+                  <Text style={{ fontSize: 8 }}>{item.notes}</Text>
+                ) : (
+                  <Text style={styles.muted}>—</Text>
+                )}
+              </View>
             </View>
-          </View>
-        ))}
+          );
+        })}
 
         <View style={styles.totals}>
-          <Text style={styles.grand}>Total hours: {formatHours(hours)}</Text>
+          <Text style={{ fontSize: 9, color: "#9ca3af", marginBottom: 4, textTransform: "uppercase" }}>
+            Total time
+          </Text>
+          <Text style={styles.grand}>
+            {formatHours(workedSum)} / {formatHours(plannedSum)} hrs
+          </Text>
+          <Text style={styles.grandSub}>Worked / planned</Text>
         </View>
 
         {report.notes ? (
           <View style={styles.notes}>
-            <Text style={{ fontFamily: "Helvetica-Bold", marginBottom: 4 }}>Notes</Text>
+            <Text style={{ fontFamily: "Helvetica-Bold", marginBottom: 4 }}>Overview</Text>
             <Text>{report.notes}</Text>
           </View>
         ) : null}

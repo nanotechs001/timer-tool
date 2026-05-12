@@ -27,6 +27,11 @@ export function formatSummaryCreatedAt(iso: string): string {
   }).format(d);
 }
 
+/** When the summary was last saved (`updated_at`). */
+export function formatSummaryUpdatedAt(iso: string): string {
+  return formatSummaryCreatedAt(iso);
+}
+
 const ISO_DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 export function isIsoDateOnlyString(s: string): boolean {

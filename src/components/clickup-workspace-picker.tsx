@@ -47,7 +47,8 @@ type FolderLocationOption =
     };
 
 type Props = {
-  onAddFromClickUp?: (task: string, hours: number) => void;
+  /** `hoursWorked` defaults to `hoursTotal` when omitted (same as ClickUp tracked time for both columns until you edit the row). */
+  onAddFromClickUp?: (task: string, hoursTotal: number, hoursWorked?: number) => void;
   /** When the summary’s client is linked to ClickUp, open this path by default. */
   initialClickUp?: ClickUpInitialSelection | null;
 };

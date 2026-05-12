@@ -2,10 +2,10 @@ import type { Client, LineItem, Report } from "@/lib/types";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
 const REPORT_COLUMNS =
-  "id,slug,title,client_id,line_items,currency,notes,issue_date,due_date,bill_from_name,bill_from_email,created_by_user_id,created_by_label,created_at";
+  "id,slug,title,client_id,line_items,currency,notes,issue_date,due_date,bill_from_name,bill_from_email,created_by_user_id,created_by_label,created_at,updated_at";
 
 const REPORT_COLUMNS_LEGACY =
-  "id,slug,title,client_id,line_items,currency,notes,issue_date,due_date,bill_from_name,bill_from_email,created_at";
+  "id,slug,title,client_id,line_items,currency,notes,issue_date,due_date,bill_from_name,bill_from_email,created_at,updated_at";
 
 function isMissingReportCreatorColumnsError(message: string): boolean {
   const m = message.toLowerCase();
@@ -30,10 +30,19 @@ function parseLineItems(raw: unknown): LineItem[] {
         o.notes != null && String(o.notes).trim() !== ""
           ? String(o.notes)
           : legacyUrl || undefined;
+      const hours = Number(o.hours) || 0;
+      let hoursWorked: number | undefined;
+      if (o.hoursWorked !== undefined && o.hoursWorked !== null && o.hoursWorked !== "") {
+        const w = Number(o.hoursWorked);
+        if (Number.isFinite(w)) {
+          hoursWorked = Math.min(Math.max(0, w), hours);
+        }
+      }
       return {
         id: String(o.id ?? crypto.randomUUID()),
         task: String(o.task ?? ""),
-        hours: Number(o.hours) || 0,
+        hours,
+        hoursWorked,
         rate: Number(o.rate) || 0,
         notes: lineNotes,
       } satisfies LineItem;
@@ -97,7 +106,9 @@ function mapReportRow(r: {
   created_by_user_id?: string | null;
   created_by_label?: string | null;
   created_at?: string | null;
+  updated_at?: string | null;
 }): Report {
+  const createdAt = r.created_at ?? "";
   return {
     id: r.id,
     slug: r.slug,
@@ -112,7 +123,8 @@ function mapReportRow(r: {
     billFromEmail: r.bill_from_email ?? "",
     createdByUserId: r.created_by_user_id ?? null,
     createdByLabel: r.created_by_label ?? "",
-    createdAt: r.created_at ?? "",
+    createdAt,
+    updatedAt: (r.updated_at ?? createdAt) || "",
   };
 }
 

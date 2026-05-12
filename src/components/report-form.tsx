@@ -1,11 +1,15 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { formatReportPeriodLine, isIsoDateOnlyString } from "@/lib/format";
+import {
+  formatHours,
+  formatReportPeriodLine,
+  formatSummaryUpdatedAt,
+  isIsoDateOnlyString,
+} from "@/lib/format";
 import { useRouter } from "next/navigation";
 import type { Client, LineItem, Report } from "@/lib/types";
-import { totalHours } from "@/lib/types";
-import { formatHours } from "@/lib/format";
+import { totalPlannedHours, totalWorkedHours } from "@/lib/types";
 import { nanoid } from "nanoid";
 import { ClickUpWorkspacePicker } from "@/components/clickup-workspace-picker";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -17,6 +21,52 @@ type Props = {
   /** Only admins may delete a summary (API enforces this too). */
   canDelete?: boolean;
 };
+
+function resolvedWorked(r: LineItem): number {
+  if (
+    r.hoursWorked !== undefined &&
+    r.hoursWorked !== null &&
+    Number.isFinite(Number(r.hoursWorked))
+  ) {
+    return Number(r.hoursWorked);
+  }
+  return r.hours;
+}
+
+function normalizeFormLineItems(items: LineItem[] | undefined): LineItem[] {
+  if (!items?.length) return [];
+  return items.map((row) => ({
+    ...row,
+    hoursWorked: resolvedWorked(row),
+  }));
+}
+
+function validationHintFromBody(data: Record<string, unknown>): string | null {
+  const issues = data.issues as
+    | {
+        fieldErrors?: Record<string, string[] | undefined>;
+        formErrors?: string[];
+      }
+    | undefined;
+  if (!issues) return null;
+  const parts: string[] = [];
+  if (issues.formErrors?.length) parts.push(...issues.formErrors);
+  if (issues.fieldErrors) {
+    for (const msgs of Object.values(issues.fieldErrors)) {
+      if (msgs?.length) parts.push(...msgs);
+    }
+  }
+  const uniq = [...new Set(parts)];
+  return uniq.length ? uniq.slice(0, 5).join(" · ") : null;
+}
+
+const MANUAL_FIELD_WRAP = "relative block";
+const MANUAL_FIELD_LABEL =
+  "absolute left-3 top-0 z-10 -translate-y-1/2 cursor-default select-none bg-white px-1.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-500 dark:bg-surface dark:text-zinc-400";
+const MANUAL_INPUT_CLASS =
+  "w-full rounded-lg border border-zinc-200 bg-white px-2.5 pb-2 pt-2.5 text-sm outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-zinc-800 dark:bg-surface dark:text-zinc-100";
+const MANUAL_TEXTAREA_CLASS =
+  "w-full resize-y rounded-lg border border-zinc-200 bg-white px-2.5 pb-2 pt-2.5 text-xs leading-snug outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-zinc-800 dark:bg-surface dark:text-zinc-100";
 
 export function ReportForm({ clients, mode, initial, canDelete = false }: Props) {
   const router = useRouter();
@@ -49,8 +99,8 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
   }, [initial]);
   const [fromName, setFromName] = useState(initial?.billFromName ?? "");
   const [fromEmail, setFromEmail] = useState(initial?.billFromEmail ?? "");
-  const [lineItems, setLineItems] = useState<LineItem[]>(
-    initial?.lineItems?.length ? initial.lineItems : []
+  const [lineItems, setLineItems] = useState<LineItem[]>(() =>
+    normalizeFormLineItems(initial?.lineItems)
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,12 +109,14 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
   const [clickUpPanelOpen, setClickUpPanelOpen] = useState(false);
   const [manualDraft, setManualDraft] = useState({
     task: "",
-    hours: 0,
+    hoursWorked: 0,
+    hoursTotal: 0,
     notes: "",
   });
   const clickUpImportRef = useRef<HTMLDivElement>(null);
 
-  const hoursSum = useMemo(() => totalHours(lineItems), [lineItems]);
+  const workedSum = useMemo(() => totalWorkedHours(lineItems), [lineItems]);
+  const plannedSum = useMemo(() => totalPlannedHours(lineItems), [lineItems]);
 
   const selectedClient = useMemo(
     () => (clientId ? clients.find((c) => c.id === clientId) : undefined),
@@ -91,17 +143,21 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
   function addManualDraftToLineItems() {
     const task = manualDraft.task.trim();
     if (!task) return;
+    const total = Math.max(0, manualDraft.hoursTotal);
+    let worked = Math.max(0, manualDraft.hoursWorked);
+    if (worked > total) worked = total;
     setLineItems((rows) => [
       ...rows,
       {
         id: nanoid(8),
         task,
-        hours: manualDraft.hours,
+        hours: total,
+        hoursWorked: worked,
         rate: 0,
         notes: manualDraft.notes.trim() || undefined,
       },
     ]);
-    setManualDraft({ task: "", hours: 0, notes: "" });
+    setManualDraft({ task: "", hoursWorked: 0, hoursTotal: 0, notes: "" });
   }
 
   function removeLine(id: string) {
@@ -152,9 +208,19 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error ?? "Save failed");
-        router.push(`/reports/${data.id}`);
+        const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+        if (!res.ok) {
+          throw new Error(
+            validationHintFromBody(data) ??
+              (typeof data.error === "string" ? data.error : null) ??
+              "Save failed"
+          );
+        }
+        const newId = data.id;
+        if (typeof newId !== "string" || !newId) {
+          throw new Error("Save failed");
+        }
+        router.push(`/reports/${newId}`);
         router.refresh();
       } else if (initial) {
         const res = await fetch(`/api/reports/${initial.id}`, {
@@ -162,8 +228,14 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error ?? "Update failed");
+        const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+        if (!res.ok) {
+          throw new Error(
+            validationHintFromBody(data) ??
+              (typeof data.error === "string" ? data.error : null) ??
+              "Update failed"
+          );
+        }
         router.refresh();
       }
     } catch (e) {
@@ -211,6 +283,12 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900 dark:bg-red-950/40 dark:text-red-100">
           {error}
         </div>
+      ) : null}
+
+      {mode === "edit" && initial ? (
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          Last updated {formatSummaryUpdatedAt(initial.updatedAt || initial.createdAt)}
+        </p>
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -313,13 +391,17 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
         </label>
         <label className="block sm:col-span-2">
           <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500">
-            Notes
+            Overview
+          </span>
+          <span className="mb-1.5 block text-[11px] leading-snug text-zinc-500 dark:text-zinc-400">
+            Shown on the public summary and PDF (optional).
           </span>
           <textarea
             rows={3}
             className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-4 focus:ring-brand/25 dark:border-zinc-800 dark:bg-surface"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
+            placeholder="e.g. What shipped, what’s next, or anything you want them to remember."
           />
         </label>
       </div>
@@ -332,10 +414,11 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
             </h2>
             <p className="mt-1 max-w-xl text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
               Add rows with <strong className="font-medium text-zinc-800 dark:text-zinc-200">Add manually</strong>{" "}
-              (type task, hours, and per-task notes yourself) or use{" "}
+              (task, <strong className="font-medium text-zinc-800 dark:text-zinc-200">worked hours</strong>,{" "}
+              <strong className="font-medium text-zinc-800 dark:text-zinc-200">total / planned hours</strong>, and
+              per-task notes) or use{" "}
               <strong className="font-medium text-zinc-800 dark:text-zinc-200">Load from ClickUp</strong>{" "}
-              to open the importer, then pick workspace → channel → list → task. Hours come from
-              ClickUp time tracked when available; row notes are always entered here in the app.
+              to import a task. Tracked time fills both columns until you adjust them; notes stay in the table below.
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:shrink-0">
@@ -394,20 +477,27 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
                 Go <strong className="font-medium">Workspace → Folder → List → Task</strong> (folder
                 rows match company search), review <strong className="font-medium">hours</strong> from
                 ClickUp when available, then <strong className="font-medium">Add row from this task</strong>.{" "}
+                Both <strong className="font-medium">worked</strong> and <strong className="font-medium">total</strong>{" "}
+                start from that value; edit in the table if the budget differs.{" "}
                 <strong className="font-medium">Notes</strong> are only in the table below.
               </p>
               <div className="mt-3">
                 <ClickUpWorkspacePicker
                   key={clientId || "__no_client__"}
                   initialClickUp={clickUpInitial}
-                  onAddFromClickUp={(task, hours) => {
+                  onAddFromClickUp={(task, total, worked) => {
                     setError(null);
+                    const cap = Math.max(0, total);
+                    const raw =
+                      worked === undefined || worked === null ? cap : worked;
+                    const w = Math.min(Math.max(0, raw), cap);
                     setLineItems((rows) => [
                       ...rows,
                       {
                         id: nanoid(8),
                         task,
-                        hours,
+                        hours: cap,
+                        hoursWorked: w,
                         rate: 0,
                         notes: undefined,
                       },
@@ -428,38 +518,77 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
               Fill in the row, then <strong className="font-medium">Add to list</strong> to append it
               to the table below.
             </p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-12">
-              <input
-                className="sm:col-span-12 md:col-span-5 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm dark:border-zinc-800 dark:bg-surface"
-                placeholder="Task description"
-                value={manualDraft.task}
-                onChange={(e) =>
-                  setManualDraft((d) => ({ ...d, task: e.target.value }))
-                }
-              />
-              <input
-                type="number"
-                min={0}
-                step={0.25}
-                className="sm:col-span-4 md:col-span-2 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm dark:border-zinc-800 dark:bg-surface"
-                placeholder="Hours"
-                value={manualDraft.hours || ""}
-                onChange={(e) =>
-                  setManualDraft((d) => ({
-                    ...d,
-                    hours: Number(e.target.value) || 0,
-                  }))
-                }
-              />
-              <textarea
-                rows={2}
-                className="sm:col-span-8 md:col-span-5 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs dark:border-zinc-800 dark:bg-surface"
-                placeholder="Notes (manual only)"
-                value={manualDraft.notes}
-                onChange={(e) =>
-                  setManualDraft((d) => ({ ...d, notes: e.target.value }))
-                }
-              />
+            <div className="mt-3 grid gap-3 sm:grid-cols-12">
+              <div className={`${MANUAL_FIELD_WRAP} sm:col-span-12 md:col-span-4`}>
+                <label htmlFor="manual-task" className={MANUAL_FIELD_LABEL}>
+                  Task
+                </label>
+                <input
+                  id="manual-task"
+                  autoComplete="off"
+                  className={MANUAL_INPUT_CLASS}
+                  placeholder="e.g. Web development"
+                  value={manualDraft.task}
+                  onChange={(e) =>
+                    setManualDraft((d) => ({ ...d, task: e.target.value }))
+                  }
+                />
+              </div>
+              <div className={`${MANUAL_FIELD_WRAP} sm:col-span-6 md:col-span-2`}>
+                <label htmlFor="manual-worked" className={MANUAL_FIELD_LABEL}>
+                  Hours worked
+                </label>
+                <input
+                  id="manual-worked"
+                  type="number"
+                  min={0}
+                  step={0.25}
+                  className={MANUAL_INPUT_CLASS}
+                  placeholder="0"
+                  value={manualDraft.hoursWorked}
+                  onChange={(e) =>
+                    setManualDraft((d) => ({
+                      ...d,
+                      hoursWorked: Number(e.target.value) || 0,
+                    }))
+                  }
+                />
+              </div>
+              <div className={`${MANUAL_FIELD_WRAP} sm:col-span-6 md:col-span-2`}>
+                <label htmlFor="manual-total" className={MANUAL_FIELD_LABEL}>
+                  Total hours
+                </label>
+                <input
+                  id="manual-total"
+                  type="number"
+                  min={0}
+                  step={0.25}
+                  className={MANUAL_INPUT_CLASS}
+                  placeholder="0"
+                  value={manualDraft.hoursTotal}
+                  onChange={(e) =>
+                    setManualDraft((d) => ({
+                      ...d,
+                      hoursTotal: Number(e.target.value) || 0,
+                    }))
+                  }
+                />
+              </div>
+              <div className={`${MANUAL_FIELD_WRAP} sm:col-span-12 md:col-span-4`}>
+                <label htmlFor="manual-notes" className={MANUAL_FIELD_LABEL}>
+                  Notes
+                </label>
+                <textarea
+                  id="manual-notes"
+                  rows={2}
+                  className={MANUAL_TEXTAREA_CLASS}
+                  placeholder="Optional"
+                  value={manualDraft.notes}
+                  onChange={(e) =>
+                    setManualDraft((d) => ({ ...d, notes: e.target.value }))
+                  }
+                />
+              </div>
               <button
                 type="button"
                 className="col-span-12 justify-self-start rounded-lg bg-brand px-5 py-2.5 text-sm font-medium whitespace-nowrap text-white shadow-sm hover:bg-brand-hover"
@@ -482,11 +611,12 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
             </p>
           ) : (
             <div className="mt-3 overflow-x-auto rounded-xl border border-zinc-200/80 bg-white dark:border-zinc-800 dark:bg-zinc-900/40">
-              <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+              <table className="w-full min-w-[720px] border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-zinc-200 bg-zinc-50/80 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:bg-surface/55">
                     <th className="px-3 py-2.5 font-medium">Task</th>
-                    <th className="w-24 px-3 py-2.5 font-medium">Hours</th>
+                    <th className="w-24 px-3 py-2.5 font-medium">Worked</th>
+                    <th className="w-24 px-3 py-2.5 font-medium">Total</th>
                     <th className="min-w-[200px] px-3 py-2.5 font-medium">Notes</th>
                     <th className="w-24 px-3 py-2.5 font-medium" />
                   </tr>
@@ -513,13 +643,31 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
                           min={0}
                           step={0.25}
                           className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm tabular-nums dark:border-zinc-800 dark:bg-surface"
-                          placeholder="Hours"
-                          value={row.hours || ""}
-                          onChange={(e) =>
+                          placeholder="Worked"
+                          value={resolvedWorked(row)}
+                          onChange={(e) => {
+                            const w = Number(e.target.value) || 0;
                             updateLine(row.id, {
-                              hours: Number(e.target.value) || 0,
-                            })
-                          }
+                              hoursWorked: Math.min(Math.max(0, w), row.hours),
+                            });
+                          }}
+                        />
+                      </td>
+                      <td className="align-top px-3 py-2">
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.25}
+                          className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm tabular-nums dark:border-zinc-800 dark:bg-surface"
+                          placeholder="Total"
+                          value={row.hours}
+                          onChange={(e) => {
+                            const total = Number(e.target.value) || 0;
+                            updateLine(row.id, {
+                              hours: total,
+                              hoursWorked: Math.min(resolvedWorked(row), total),
+                            });
+                          }}
                         />
                       </td>
                       <td className="align-top px-3 py-2">
@@ -551,11 +699,19 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
             </div>
           )}
         </div>
-        <div className="mt-4 flex justify-end border-t border-zinc-200 pt-4 text-sm dark:border-zinc-800">
-          <span className="text-zinc-500">Total time</span>
-          <span className="ml-4 text-lg font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
-            {formatHours(hoursSum)} hrs
-          </span>
+        <div className="mt-4 flex flex-col items-end gap-1 border-t border-zinc-200 pt-4 text-sm dark:border-zinc-800">
+          <div>
+            <span className="text-zinc-500">Total worked</span>
+            <span className="ml-4 text-lg font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
+              {formatHours(workedSum)} hrs
+            </span>
+          </div>
+          <div>
+            <span className="text-zinc-500">Total (planned)</span>
+            <span className="ml-4 text-base font-semibold tabular-nums text-zinc-700 dark:text-zinc-200">
+              {formatHours(plannedSum)} hrs
+            </span>
+          </div>
         </div>
       </section>
 

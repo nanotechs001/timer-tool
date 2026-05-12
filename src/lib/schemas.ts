@@ -1,16 +1,32 @@
 import { z } from "zod";
 
-export const lineItemSchema = z.object({
-  id: z.string().optional(),
-  task: z.string().trim().min(1, "Task is required"),
-  hours: z.coerce.number().nonnegative(),
-  rate: z.coerce.number().nonnegative().optional(),
-  notes: z.preprocess((v) => {
-    if (v === undefined || v === null) return undefined;
-    const s = String(v).trim();
-    return s === "" ? undefined : s;
-  }, z.string().max(4000).optional()),
-});
+export const lineItemSchema = z
+  .object({
+    id: z.string().optional(),
+    task: z.string().trim().min(1, "Task is required"),
+    hours: z.coerce.number().nonnegative(),
+    hoursWorked: z.preprocess((v) => {
+      if (v === undefined || v === null || v === "") return undefined;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : undefined;
+    }, z.number().nonnegative().optional()),
+    rate: z.coerce.number().nonnegative().optional(),
+    notes: z.preprocess((v) => {
+      if (v === undefined || v === null) return undefined;
+      const s = String(v).trim();
+      return s === "" ? undefined : s;
+    }, z.string().max(4000).optional()),
+  })
+  .superRefine((row, ctx) => {
+    if (row.hoursWorked === undefined) return;
+    if (row.hoursWorked > row.hours) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Worked hours cannot exceed total hours",
+        path: ["hoursWorked"],
+      });
+    }
+  });
 
 export const createClientSchema = z.object({
   name: z.string().trim().min(1),
@@ -27,7 +43,10 @@ export const updateClientSchema = createClientSchema.partial();
 
 export const createReportSchema = z.object({
   title: z.string().trim().min(1),
-  clientId: z.union([z.string().uuid(), z.null()]).optional(),
+  clientId: z.preprocess(
+    (v) => (v === "" || v === undefined ? null : v),
+    z.union([z.string().uuid(), z.null()]).optional()
+  ),
   lineItems: z.array(lineItemSchema).min(1, "Add at least one task"),
   currency: z.preprocess((v) => {
     if (v === undefined || v === null) return undefined;
@@ -38,9 +57,12 @@ export const createReportSchema = z.object({
   issueDate: z.string().trim().optional(),
   dueDate: z.string().trim().optional(),
   billFromName: z.string().trim().optional(),
-  billFromEmail: z
-    .union([z.string().trim().email(), z.literal("")])
-    .optional(),
+  /** Display-only contact line; avoid strict email() so drafts / partial addresses do not block save. */
+  billFromEmail: z.preprocess((v) => {
+    if (v === undefined || v === null) return undefined;
+    const s = String(v).trim();
+    return s === "" ? undefined : s;
+  }, z.string().max(320).optional()),
 });
 
 export const updateReportSchema = createReportSchema.partial();

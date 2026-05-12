@@ -12,7 +12,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import type { Client, Report } from "@/lib/types";
-import { totalHours } from "@/lib/types";
+import { totalPlannedHours, totalWorkedHours } from "@/lib/types";
 import { formatHours, formatSummaryCreatedAt } from "@/lib/format";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ReportPreviewDialog } from "@/components/report-preview-dialog";
@@ -356,7 +356,7 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
             <th className="px-4 py-2.5 font-medium">Created</th>
             <th className="px-4 py-2.5 font-medium">By</th>
             <th className="px-4 py-2.5 font-medium">Title</th>
-            <th className="px-4 py-2.5 font-medium">Hours</th>
+            <th className="px-4 py-2.5 font-medium">Worked / total</th>
             <th className="px-4 py-2.5 font-medium">Share</th>
             <th className="px-4 py-2.5 text-right font-medium"> </th>
           </tr>
@@ -366,7 +366,8 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
             const shareDisplay = shareBase
               ? `${shareBase}/r/${rep.slug}`
               : `/r/${rep.slug}`;
-            const hrs = totalHours(rep.lineItems);
+            const worked = totalWorkedHours(rep.lineItems);
+            const planned = totalPlannedHours(rep.lineItems);
             return (
               <tr
                 key={rep.id}
@@ -382,7 +383,7 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
                   {rep.title}
                 </td>
                 <td className="px-4 py-3 tabular-nums text-zinc-600 dark:text-zinc-400">
-                  {formatHours(hrs)} hrs
+                  {formatHours(worked)} / {formatHours(planned)} hrs
                 </td>
                 <td className="max-w-[14rem] px-4 py-3">
                   <span className="inline-block max-w-full align-middle">

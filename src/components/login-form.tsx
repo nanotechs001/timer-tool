@@ -1,27 +1,41 @@
 "use client";
 
 import { createBrowserClient } from "@supabase/ssr";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { BrandLogo } from "@/components/brand-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export function LoginForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (searchParams.get("error") === "auth_config") {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- derive banner from URL once
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get("error") === "auth_config") {
       setError(
         "Server auth is not configured. Add NEXT_PUBLIC_SUPABASE_ANON_KEY (or PUBLISHABLE_KEY) to .env.local, then restart the dev server."
       );
+      return;
     }
-  }, [searchParams]);
+    if (sp.get("error") === "auth") {
+      setError(
+        "That sign-in link is invalid or expired. Ask an admin to send a new invite, and open the link on the same site where it was sent (production vs localhost)."
+      );
+      return;
+    }
+    const err = sp.get("error");
+    if (err && err !== "auth_config" && err !== "auth") {
+      try {
+        setError(decodeURIComponent(err));
+      } catch {
+        setError(err);
+      }
+    }
+  }, []);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -41,7 +55,8 @@ export function LoginForm() {
         password,
       });
       if (signErr) throw new Error(signErr.message);
-      const next = searchParams.get("next");
+      const sp = new URLSearchParams(window.location.search);
+      const next = sp.get("next");
       const safe =
         next &&
         next.startsWith("/") &&
