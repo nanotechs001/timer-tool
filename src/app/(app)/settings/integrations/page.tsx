@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { publicAppUrl } from "@/lib/config";
 import { isClickUpOAuthConfigured } from "@/lib/clickup/config";
 import {
@@ -5,6 +6,7 @@ import {
   isClickUpTableAvailable,
 } from "@/lib/clickup/store";
 import { IntegrationsClickUpPanel } from "@/components/integrations-clickup-panel";
+import { isUserAdmin } from "@/lib/profiles";
 import { getSessionUser } from "@/lib/supabase/server";
 import { headers } from "next/headers";
 
@@ -14,6 +16,12 @@ export default async function IntegrationsPage({ searchParams }: Props) {
   const sp = await searchParams;
   const oauth = isClickUpOAuthConfigured();
   const user = await getSessionUser();
+  if (!user?.id) {
+    redirect("/");
+  }
+  if (!(await isUserAdmin(user.id))) {
+    redirect("/dashboard");
+  }
   const clickupTableReady = await isClickUpTableAvailable();
   const initialConnected =
     clickupTableReady && user?.id

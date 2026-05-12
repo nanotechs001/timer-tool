@@ -36,6 +36,9 @@ export type Report = {
   dueDate: string;
   billFromName: string;
   billFromEmail: string;
+  /** Who created this summary (set on insert). */
+  createdByUserId: string | null;
+  createdByLabel: string;
   /** ISO timestamp from DB `created_at`. */
   createdAt: string;
 };

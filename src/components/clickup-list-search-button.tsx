@@ -4,9 +4,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { InlineSpinner } from "@/components/inline-spinner";
-import { readClickUpCache, writeClickUpCache } from "@/lib/clickup/browser-cache";
-
-const CACHE_KEY_ALL_CHANNELS = "clickup:all-channels";
+import {
+  CACHE_KEY_ALL_CHANNELS,
+  clearAllClickUpCache,
+  readClickUpCache,
+  writeClickUpCache,
+} from "@/lib/clickup/browser-cache";
 
 export type ClientLocationPick = {
   /** Folder or list title — used as the client’s company name. */
@@ -41,6 +44,7 @@ export function ClickUpChannelSearchButton({
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
 
   const closeDialog = useCallback(() => {
@@ -111,13 +115,18 @@ export function ClickUpChannelSearchButton({
     }
   }, []);
 
+  const syncFresh = useCallback(() => {
+    clearAllClickUpCache();
+    setReloadKey((k) => k + 1);
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     void load();
     return () => {
       abortRef.current?.abort();
     };
-  }, [open, load]);
+  }, [open, load, reloadKey]);
 
   useEffect(() => {
     if (!open) return;
@@ -185,14 +194,25 @@ export function ClickUpChannelSearchButton({
                 >
                   Company from ClickUp
                 </h2>
-                {loading ? <InlineSpinner label="Loading…" /> : null}
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => syncFresh()}
+                    disabled={loading}
+                    className="rounded-lg border border-zinc-200 px-2 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  >
+                    Sync
+                  </button>
+                  {loading ? <InlineSpinner label="Loading…" /> : null}
+                </div>
               </div>
               <p className="mt-0.5 text-xs text-zinc-500">
                 Choose a <strong className="font-medium">folder</strong> or{" "}
                 <strong className="font-medium">list</strong>. We fill <strong className="font-medium">Company</strong>{" "}
                 and store the ClickUp path for task import (requires ClickUp columns on{" "}
                 <code className="rounded bg-zinc-100 px-0.5 text-[10px] dark:bg-zinc-800">clients</code>).{" "}
-                Locations are cached until you reload the page.
+                Locations stay cached while you work; use <strong className="font-medium">Sync</strong> for a fresh pull
+                from ClickUp.
               </p>
               <input
                 autoFocus

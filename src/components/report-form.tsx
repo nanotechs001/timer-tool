@@ -14,9 +14,11 @@ type Props = {
   clients: Client[];
   mode: "create" | "edit";
   initial?: Report;
+  /** Only admins may delete a summary (API enforces this too). */
+  canDelete?: boolean;
 };
 
-export function ReportForm({ clients, mode, initial }: Props) {
+export function ReportForm({ clients, mode, initial, canDelete = false }: Props) {
   const router = useRouter();
   const [title, setTitle] = useState(initial?.title ?? "");
   const [clientId, setClientId] = useState<string | "">(initial?.clientId ?? "");
@@ -566,7 +568,7 @@ export function ReportForm({ clients, mode, initial }: Props) {
         >
           {busy ? "Saving…" : mode === "create" ? "Create share link" : "Save changes"}
         </button>
-        {mode === "edit" && initial ? (
+        {mode === "edit" && initial && canDelete ? (
           <button
             type="button"
             disabled={busy}

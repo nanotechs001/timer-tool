@@ -9,7 +9,10 @@ import { InlineSpinner } from "@/components/inline-spinner";
 import {
   CACHE_KEY_CLICKUP_TEAMS,
   cacheKeyLists,
+  cacheKeyTaskDetail,
+  cacheKeyTasks,
   cacheKeyWorkspaceFolderOptions,
+  clearAllClickUpCache,
   readClickUpCache,
   writeClickUpCache,
 } from "@/lib/clickup/browser-cache";
@@ -69,6 +72,8 @@ export function ClickUpWorkspacePicker({
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [loadingTaskDetail, setLoadingTaskDetail] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  /** Bumped with Sync to bypass cache and refetch. */
+  const [dataRevision, setDataRevision] = useState(0);
   const initAppliedRef = useRef(false);
   const prevListIdRef = useRef<string | undefined>(undefined);
 
@@ -84,6 +89,11 @@ export function ClickUpWorkspacePicker({
     () => folderOptions.find((o) => o.key === locationKey),
     [folderOptions, locationKey]
   );
+
+  const handleSyncClickUp = useCallback(() => {
+    clearAllClickUpCache();
+    setDataRevision((n) => n + 1);
+  }, []);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -145,7 +155,7 @@ export function ClickUpWorkspacePicker({
       cancelled = true;
       ac.abort();
     };
-  }, [status?.connected]);
+  }, [status?.connected, dataRevision]);
 
   useEffect(() => {
     if (!teamId || !status?.connected) {
@@ -160,7 +170,6 @@ export function ClickUpWorkspacePicker({
     const ac = new AbortController();
     let cancelled = false;
     (async () => {
-      setLoadingFolderOptions(true);
       setErr(null);
       try {
         const cacheKey = cacheKeyWorkspaceFolderOptions(teamId);
@@ -170,6 +179,7 @@ export function ClickUpWorkspacePicker({
           setFolderOptions(cached.options);
           return;
         }
+        setLoadingFolderOptions(true);
         const res = await fetch(
           `/api/clickup/workspace-folder-options?teamId=${encodeURIComponent(teamId)}`,
           { credentials: "include", signal: ac.signal }
@@ -191,7 +201,7 @@ export function ClickUpWorkspacePicker({
       cancelled = true;
       ac.abort();
     };
-  }, [teamId, status?.connected]);
+  }, [teamId, status?.connected, dataRevision]);
 
   useEffect(() => {
     if (!teamId || folderOptions.length === 0) return;
@@ -247,28 +257,26 @@ export function ClickUpWorkspacePicker({
     const ac = new AbortController();
     let cancelled = false;
     (async () => {
-      setLoadingLists(true);
       setErr(null);
-      setListId("");
       try {
         const cacheKey = cacheKeyLists(spaceId, folderId);
         const cached = readClickUpCache<{ lists: ClickUpList[] }>(cacheKey);
-        let nextLists: ClickUpList[];
         if (cached && Array.isArray(cached.lists)) {
-          nextLists = cached.lists;
-        } else {
-          const q = new URLSearchParams({ spaceId, folderId });
-          const res = await fetch(`/api/clickup/lists?${q}`, {
-            credentials: "include",
-            signal: ac.signal,
-          });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(data.error ?? "Failed to load lists");
           if (cancelled) return;
-          nextLists = (data.lists ?? []) as ClickUpList[];
-          writeClickUpCache(cacheKey, { lists: nextLists });
+          setLists(cached.lists);
+          return;
         }
+        setLoadingLists(true);
+        const q = new URLSearchParams({ spaceId, folderId });
+        const res = await fetch(`/api/clickup/lists?${q}`, {
+          credentials: "include",
+          signal: ac.signal,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error ?? "Failed to load lists");
         if (cancelled) return;
+        const nextLists = (data.lists ?? []) as ClickUpList[];
+        writeClickUpCache(cacheKey, { lists: nextLists });
         setLists(nextLists);
       } catch (e) {
         if (e instanceof Error && e.name === "AbortError") return;
@@ -281,7 +289,7 @@ export function ClickUpWorkspacePicker({
       cancelled = true;
       ac.abort();
     };
-  }, [selectedLocation, status?.connected]);
+  }, [selectedLocation, status?.connected, dataRevision]);
 
   useEffect(() => {
     if (!selectedLocation || selectedLocation.kind !== "folder") return;
@@ -318,9 +326,16 @@ export function ClickUpWorkspacePicker({
     const ac = new AbortController();
     let cancelled = false;
     (async () => {
-      setLoadingTasks(true);
       setErr(null);
       try {
+        const cacheKey = cacheKeyTasks(listId);
+        const cached = readClickUpCache<{ tasks: ClickUpTask[] }>(cacheKey);
+        if (cached && Array.isArray(cached.tasks)) {
+          if (cancelled) return;
+          setTasks(cached.tasks);
+          return;
+        }
+        setLoadingTasks(true);
         const res = await fetch(
           `/api/clickup/tasks?listId=${encodeURIComponent(listId)}`,
           { credentials: "include", signal: ac.signal }
@@ -328,7 +343,9 @@ export function ClickUpWorkspacePicker({
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error ?? "Failed to load tasks");
         if (cancelled) return;
-        setTasks((data.tasks ?? []) as ClickUpTask[]);
+        const next = (data.tasks ?? []) as ClickUpTask[];
+        writeClickUpCache(cacheKey, { tasks: next });
+        setTasks(next);
       } catch (e) {
         if (e instanceof Error && e.name === "AbortError") return;
         if (!cancelled) setErr(e instanceof Error ? e.message : "Error");
@@ -340,7 +357,7 @@ export function ClickUpWorkspacePicker({
       cancelled = true;
       ac.abort();
     };
-  }, [listId, showImport, status?.connected]);
+  }, [listId, showImport, status?.connected, dataRevision]);
 
   useEffect(() => {
     if (!showImport || !taskId || !status?.connected) {
@@ -350,9 +367,20 @@ export function ClickUpWorkspacePicker({
     const ac = new AbortController();
     let cancelled = false;
     (async () => {
-      setLoadingTaskDetail(true);
       setErr(null);
       try {
+        const cacheKey = cacheKeyTaskDetail(taskId);
+        const cached = readClickUpCache<{ hoursFromClickUp: number }>(cacheKey);
+        if (
+          cached &&
+          typeof cached.hoursFromClickUp === "number" &&
+          Number.isFinite(cached.hoursFromClickUp)
+        ) {
+          if (cancelled) return;
+          setImportHours(cached.hoursFromClickUp);
+          return;
+        }
+        setLoadingTaskDetail(true);
         const res = await fetch(
           `/api/clickup/task?taskId=${encodeURIComponent(taskId)}`,
           { credentials: "include", signal: ac.signal }
@@ -361,7 +389,9 @@ export function ClickUpWorkspacePicker({
         if (!res.ok) throw new Error(data.error ?? "Failed to load task");
         if (cancelled) return;
         const h = Number(data.hoursFromClickUp);
-        setImportHours(Number.isFinite(h) ? h : 0);
+        const hours = Number.isFinite(h) ? h : 0;
+        setImportHours(hours);
+        writeClickUpCache(cacheKey, { hoursFromClickUp: hours });
       } catch (e) {
         if (e instanceof Error && e.name === "AbortError") return;
         if (!cancelled) setErr(e instanceof Error ? e.message : "Error");
@@ -374,7 +404,7 @@ export function ClickUpWorkspacePicker({
       cancelled = true;
       ac.abort();
     };
-  }, [taskId, showImport, status?.connected]);
+  }, [taskId, showImport, status?.connected, dataRevision]);
 
   if (!status?.connected) {
     return (
@@ -401,8 +431,20 @@ export function ClickUpWorkspacePicker({
     <div className="space-y-2 rounded-xl border border-zinc-200 bg-zinc-50/80 p-3 text-xs dark:border-zinc-700 dark:bg-zinc-900/40">
       <div className="flex flex-wrap items-center gap-2">
         <p className="font-medium text-zinc-700 dark:text-zinc-200">ClickUp (read-only)</p>
+        <button
+          type="button"
+          onClick={handleSyncClickUp}
+          disabled={anyLoading}
+          className="rounded-lg border border-zinc-200 bg-white px-2 py-0.5 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+        >
+          Sync
+        </button>
         {anyLoading ? <InlineSpinner label="Fetching…" /> : null}
       </div>
+      <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
+        Workspace, folders, lists, and tasks are cached while you work. Use <strong className="font-medium">Sync</strong>{" "}
+        to reload everything from ClickUp.
+      </p>
       {initialClickUp?.teamId ? (
         <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
           Opened to match <strong className="font-medium text-zinc-600 dark:text-zinc-300">this summary’s client</strong>{" "}

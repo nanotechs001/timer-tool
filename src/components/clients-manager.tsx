@@ -9,9 +9,9 @@ import {
 } from "@/components/clickup-list-search-button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 
-type Props = { initialClients: Client[] };
+type Props = { initialClients: Client[]; isAdmin?: boolean };
 
-export function ClientsManager({ initialClients }: Props) {
+export function ClientsManager({ initialClients, isAdmin = false }: Props) {
   const router = useRouter();
   const [clients, setClients] = useState(initialClients);
   const [name, setName] = useState("");
@@ -80,10 +80,10 @@ export function ClientsManager({ initialClients }: Props) {
     <div className="mx-auto max-w-3xl space-y-10 px-4 py-8">
       <ConfirmDialog
         open={removeId !== null}
-        title="Remove client?"
-        description="This removes the client from your list. Work summaries that reference this client will keep their text but may show no linked client."
-        confirmLabel="Remove"
-        cancelLabel="Keep"
+        title="Delete client and all summaries?"
+        description="This permanently deletes the client and every work summary linked to them. Share links for those summaries will stop working. This cannot be undone."
+        confirmLabel="Delete all"
+        cancelLabel="Cancel"
         variant="danger"
         busy={busy}
         onCancel={() => !busy && setRemoveId(null)}
@@ -190,14 +190,16 @@ export function ClientsManager({ initialClients }: Props) {
                     {[c.company, c.email].filter(Boolean).join(" · ") || "—"}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => setRemoveId(c.id)}
-                  className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
-                >
-                  Remove
-                </button>
+                {isAdmin ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setRemoveId(c.id)}
+                    className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+                  >
+                    Delete
+                  </button>
+                ) : null}
               </li>
             ))
           )}

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import {
-  guardAdminRequest,
+  guardAdminOnlyRequest,
   jsonError,
 } from "@/lib/api-guard";
 import { getAuthorizedTeams } from "@/lib/clickup/client";
@@ -12,7 +12,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const denied = await guardAdminRequest();
+  const denied = await guardAdminOnlyRequest();
   if (denied) return denied;
   const user = await getSessionUser();
   if (!user?.id) {

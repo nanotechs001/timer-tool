@@ -25,9 +25,20 @@ create table if not exists public.reports (
   due_date text not null default '',
   bill_from_name text not null default '',
   bill_from_email text not null default '',
+  created_by_user_id uuid references auth.users (id) on delete set null,
+  created_by_label text not null default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create table if not exists public.profiles (
+  id uuid primary key references auth.users (id) on delete cascade,
+  role text not null default 'member' check (role in ('admin', 'member')),
+  full_name text not null default '',
+  created_at timestamptz not null default now()
+);
+
+alter table public.profiles enable row level security;
 
 create index if not exists reports_slug_idx on public.reports (slug);
 create index if not exists reports_client_id_idx on public.reports (client_id);

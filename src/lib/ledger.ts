@@ -2,7 +2,18 @@ import type { Client, LineItem, Report } from "@/lib/types";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
 const REPORT_COLUMNS =
+  "id,slug,title,client_id,line_items,currency,notes,issue_date,due_date,bill_from_name,bill_from_email,created_by_user_id,created_by_label,created_at";
+
+const REPORT_COLUMNS_LEGACY =
   "id,slug,title,client_id,line_items,currency,notes,issue_date,due_date,bill_from_name,bill_from_email,created_at";
+
+function isMissingReportCreatorColumnsError(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes("created_by") ||
+    (m.includes("schema cache") && m.includes("reports"))
+  );
+}
 
 function parseLineItems(raw: unknown): LineItem[] {
   if (!raw) return [];
@@ -83,6 +94,8 @@ function mapReportRow(r: {
   due_date: string | null;
   bill_from_name: string | null;
   bill_from_email: string | null;
+  created_by_user_id?: string | null;
+  created_by_label?: string | null;
   created_at?: string | null;
 }): Report {
   return {
@@ -97,6 +110,8 @@ function mapReportRow(r: {
     dueDate: r.due_date ?? "",
     billFromName: r.bill_from_name ?? "",
     billFromEmail: r.bill_from_email ?? "",
+    createdByUserId: r.created_by_user_id ?? null,
+    createdByLabel: r.created_by_label ?? "",
     createdAt: r.created_at ?? "",
   };
 }
@@ -264,7 +279,15 @@ export async function updateClient(
   return mapClientRow(upd.data);
 }
 
+export async function deleteReportsForClient(clientId: string): Promise<void> {
+  const sb = createSupabaseAdmin();
+  const { error } = await sb.from("reports").delete().eq("client_id", clientId);
+  if (error) throw new Error(error.message);
+}
+
+/** Deletes all summaries for this client, then the client row. */
 export async function deleteClient(id: string): Promise<void> {
+  await deleteReportsForClient(id);
   const sb = createSupabaseAdmin();
   const { error } = await sb.from("clients").delete().eq("id", id);
   if (error) throw new Error(error.message);
@@ -272,34 +295,84 @@ export async function deleteClient(id: string): Promise<void> {
 
 export async function listReports(): Promise<Report[]> {
   const sb = createSupabaseAdmin();
-  const { data, error } = await sb
+  const first = await sb
     .from("reports")
     .select(REPORT_COLUMNS)
     .order("created_at", { ascending: false });
-  if (error) throw new Error(error.message);
-  return (data ?? []).map(mapReportRow);
+  if (first.error) {
+    if (!isMissingReportCreatorColumnsError(first.error.message)) {
+      throw new Error(first.error.message);
+    }
+    const legacy = await sb
+      .from("reports")
+      .select(REPORT_COLUMNS_LEGACY)
+      .order("created_at", { ascending: false });
+    if (legacy.error) throw new Error(legacy.error.message);
+    return (legacy.data ?? []).map((r) =>
+      mapReportRow({
+        ...(r as Record<string, unknown>),
+        created_by_user_id: null,
+        created_by_label: "",
+      } as Parameters<typeof mapReportRow>[0])
+    );
+  }
+  return (first.data ?? []).map(mapReportRow);
 }
 
 export async function getReport(id: string): Promise<Report | null> {
   const sb = createSupabaseAdmin();
-  const { data, error } = await sb
+  const first = await sb
     .from("reports")
     .select(REPORT_COLUMNS)
     .eq("id", id)
     .maybeSingle();
-  if (error) throw new Error(error.message);
-  return data ? mapReportRow(data) : null;
+  if (first.error) {
+    if (!isMissingReportCreatorColumnsError(first.error.message)) {
+      throw new Error(first.error.message);
+    }
+    const legacy = await sb
+      .from("reports")
+      .select(REPORT_COLUMNS_LEGACY)
+      .eq("id", id)
+      .maybeSingle();
+    if (legacy.error) throw new Error(legacy.error.message);
+    return legacy.data
+      ? mapReportRow({
+          ...(legacy.data as Record<string, unknown>),
+          created_by_user_id: null,
+          created_by_label: "",
+        } as Parameters<typeof mapReportRow>[0])
+      : null;
+  }
+  return first.data ? mapReportRow(first.data) : null;
 }
 
 export async function getReportBySlug(slug: string): Promise<Report | null> {
   const sb = createSupabaseAdmin();
-  const { data, error } = await sb
+  const first = await sb
     .from("reports")
     .select(REPORT_COLUMNS)
     .eq("slug", slug)
     .maybeSingle();
-  if (error) throw new Error(error.message);
-  return data ? mapReportRow(data) : null;
+  if (first.error) {
+    if (!isMissingReportCreatorColumnsError(first.error.message)) {
+      throw new Error(first.error.message);
+    }
+    const legacy = await sb
+      .from("reports")
+      .select(REPORT_COLUMNS_LEGACY)
+      .eq("slug", slug)
+      .maybeSingle();
+    if (legacy.error) throw new Error(legacy.error.message);
+    return legacy.data
+      ? mapReportRow({
+          ...(legacy.data as Record<string, unknown>),
+          created_by_user_id: null,
+          created_by_label: "",
+        } as Parameters<typeof mapReportRow>[0])
+      : null;
+  }
+  return first.data ? mapReportRow(first.data) : null;
 }
 
 export async function createReport(input: {
@@ -313,26 +386,47 @@ export async function createReport(input: {
   dueDate?: string;
   billFromName?: string;
   billFromEmail?: string;
+  createdByUserId?: string | null;
+  createdByLabel?: string;
 }): Promise<Report> {
   const sb = createSupabaseAdmin();
-  const { data, error } = await sb
-    .from("reports")
-    .insert({
-      slug: input.slug,
-      title: input.title,
-      client_id: input.clientId,
-      line_items: input.lineItems,
-      currency: input.currency,
-      notes: input.notes ?? "",
-      issue_date: input.issueDate ?? "",
-      due_date: input.dueDate ?? "",
-      bill_from_name: input.billFromName ?? "",
-      bill_from_email: input.billFromEmail ?? "",
-    })
-    .select(REPORT_COLUMNS)
-    .single();
-  if (error) throw new Error(error.message);
-  return mapReportRow(data);
+  const insertRow: Record<string, unknown> = {
+    slug: input.slug,
+    title: input.title,
+    client_id: input.clientId,
+    line_items: input.lineItems,
+    currency: input.currency,
+    notes: input.notes ?? "",
+    issue_date: input.issueDate ?? "",
+    due_date: input.dueDate ?? "",
+    bill_from_name: input.billFromName ?? "",
+    bill_from_email: input.billFromEmail ?? "",
+  };
+  if (input.createdByUserId != null) {
+    insertRow.created_by_user_id = input.createdByUserId;
+  }
+  if (input.createdByLabel != null && input.createdByLabel !== "") {
+    insertRow.created_by_label = input.createdByLabel;
+  }
+  let ins = await sb.from("reports").insert(insertRow).select(REPORT_COLUMNS).single();
+  if (ins.error && isMissingReportCreatorColumnsError(ins.error.message)) {
+    const legacyRow = { ...insertRow } as Record<string, unknown>;
+    delete legacyRow.created_by_user_id;
+    delete legacyRow.created_by_label;
+    ins = await sb
+      .from("reports")
+      .insert(legacyRow)
+      .select(REPORT_COLUMNS_LEGACY)
+      .single();
+  }
+  if (ins.error) throw new Error(ins.error.message);
+  if (!ins.data) throw new Error("Insert failed");
+  const row = ins.data as Record<string, unknown>;
+  if (row.created_by_label === undefined) {
+    row.created_by_user_id = null;
+    row.created_by_label = "";
+  }
+  return mapReportRow(row as Parameters<typeof mapReportRow>[0]);
 }
 
 export async function updateReport(
@@ -363,7 +457,7 @@ export async function updateReport(
     billFromEmail: input.billFromEmail ?? current.billFromEmail,
   };
   const sb = createSupabaseAdmin();
-  const { data, error } = await sb
+  let upd = await sb
     .from("reports")
     .update({
       title: merged.title,
@@ -380,8 +474,33 @@ export async function updateReport(
     .eq("id", id)
     .select(REPORT_COLUMNS)
     .single();
-  if (error) throw new Error(error.message);
-  return mapReportRow(data);
+  if (upd.error && isMissingReportCreatorColumnsError(upd.error.message)) {
+    upd = await sb
+      .from("reports")
+      .update({
+        title: merged.title,
+        client_id: merged.clientId,
+        line_items: merged.lineItems,
+        currency: merged.currency,
+        notes: merged.notes,
+        issue_date: merged.issueDate,
+        due_date: merged.dueDate,
+        bill_from_name: merged.billFromName,
+        bill_from_email: merged.billFromEmail,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .select(REPORT_COLUMNS_LEGACY)
+      .single();
+  }
+  if (upd.error) throw new Error(upd.error.message);
+  if (!upd.data) throw new Error("Update failed");
+  const row = upd.data as Record<string, unknown>;
+  if (row.created_by_label === undefined) {
+    row.created_by_user_id = null;
+    row.created_by_label = "";
+  }
+  return mapReportRow(row as Parameters<typeof mapReportRow>[0]);
 }
 
 export async function deleteReport(id: string): Promise<void> {

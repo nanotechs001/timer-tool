@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 import { isDatabaseConfigured } from "@/lib/config";
 import { getReport, listClients } from "@/lib/ledger";
+import { isUserAdmin } from "@/lib/profiles";
+import { getSessionUser } from "@/lib/supabase/server";
 import { ReportForm } from "@/components/report-form";
 import { resolveShareBase } from "@/lib/share-base";
 
@@ -29,6 +31,9 @@ export default async function EditReportPage({ params }: Props) {
   ]);
 
   if (!report) notFound();
+
+  const user = await getSessionUser().catch(() => null);
+  const canDelete = user?.id ? await isUserAdmin(user.id) : false;
 
   const shareUrl = `${shareBase.replace(/\/$/, "")}/r/${report.slug}`;
 
@@ -63,7 +68,7 @@ export default async function EditReportPage({ params }: Props) {
           </div>
         </div>
       </div>
-      <ReportForm clients={clients} mode="edit" initial={report} />
+      <ReportForm clients={clients} mode="edit" initial={report} canDelete={canDelete} />
     </div>
   );
 }

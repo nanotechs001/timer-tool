@@ -61,6 +61,29 @@ export async function getClickUpAccessToken(
   return row?.access_token ?? null;
 }
 
+/**
+ * Uses this user’s token, or the first admin’s token (integrations are admin-only;
+ * team members share the connected workspace).
+ */
+export async function getEffectiveClickUpToken(
+  userId: string
+): Promise<string | null> {
+  const own = await getClickUpAccessToken(userId);
+  if (own) return own;
+  const sb = createSupabaseAdmin();
+  const { data: admins, error } = await sb
+    .from("profiles")
+    .select("id")
+    .eq("role", "admin");
+  if (error) return null;
+  for (const row of admins ?? []) {
+    const id = String((row as { id: string }).id);
+    const t = await getClickUpAccessToken(id);
+    if (t) return t;
+  }
+  return null;
+}
+
 export async function deleteClickUpConnection(userId: string): Promise<void> {
   const sb = createSupabaseAdmin();
   const { error } = await sb.from(TABLE).delete().eq("user_id", userId);

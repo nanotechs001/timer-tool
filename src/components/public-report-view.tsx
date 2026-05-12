@@ -73,6 +73,12 @@ export function PublicReportView({
                 {periodLine ? (
                   <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{periodLine}</p>
                 ) : null}
+                {report.createdByLabel?.trim() ? (
+                  <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                    <span className="font-medium text-zinc-600 dark:text-zinc-300">Created by</span>{" "}
+                    {report.createdByLabel.trim()}
+                  </p>
+                ) : null}
               </div>
             </div>
           </div>

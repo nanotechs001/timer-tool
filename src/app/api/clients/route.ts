@@ -1,5 +1,5 @@
 import {
-  guardAdminRequest,
+  guardAuthenticatedRequest,
   jsonError,
   jsonValidation,
 } from "@/lib/api-guard";
@@ -7,7 +7,7 @@ import { createClientSchema } from "@/lib/schemas";
 import { createClient, listClients } from "@/lib/ledger";
 
 export async function GET() {
-  const denied = await guardAdminRequest();
+  const denied = await guardAuthenticatedRequest();
   if (denied) return denied;
   try {
     const clients = await listClients();
@@ -19,7 +19,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const denied = await guardAdminRequest();
+  const denied = await guardAuthenticatedRequest();
   if (denied) return denied;
   let body: unknown;
   try {

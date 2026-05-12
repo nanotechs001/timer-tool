@@ -80,6 +80,8 @@ export function IntegrationsClickUpPanel({
             ? "Database is not configured; cannot store the token."
             : notice === "token_exchange"
               ? "OAuth failed. Use the personal API token below, or check your ClickUp app redirect URL and secrets."
+              : notice === "forbidden"
+                ? "Only an admin can connect ClickUp for the workspace."
               : notice
                 ? `Something went wrong (${notice}).`
                 : null;

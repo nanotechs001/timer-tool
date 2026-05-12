@@ -13,6 +13,22 @@ export function writeClickUpCache(key: string, value: unknown): void {
   store.set(key, value);
 }
 
+/** Wipes all ClickUp client caches (call when user taps Sync). */
+export function clearAllClickUpCache(): void {
+  store.clear();
+}
+
+/** All-channels index for company / client linking modal. */
+export const CACHE_KEY_ALL_CHANNELS = "clickup:all-channels";
+
+export function cacheKeyTasks(listId: string): string {
+  return `clickup:tasks:${listId}`;
+}
+
+export function cacheKeyTaskDetail(taskId: string): string {
+  return `clickup:task-detail:${taskId}`;
+}
+
 /** Sentinel: lists live directly under the space (not inside a folder). */
 export const CU_SPACE_LISTS_ROOT = "__cu_space_lists__";
 

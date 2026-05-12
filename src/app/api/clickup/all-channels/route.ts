@@ -1,4 +1,4 @@
-import { guardAdminRequest } from "@/lib/api-guard";
+import { guardAuthenticatedRequest } from "@/lib/api-guard";
 import {
   getAuthorizedTeams,
   getFolderlessLists,
@@ -6,7 +6,7 @@ import {
   getListsInFolder,
   getSpaces,
 } from "@/lib/clickup/client";
-import { getClickUpAccessToken } from "@/lib/clickup/store";
+import { getEffectiveClickUpToken } from "@/lib/clickup/store";
 import { getSessionUser } from "@/lib/supabase/server";
 
 export const maxDuration = 60;
@@ -31,13 +31,13 @@ export type ClientLocationRow = {
 };
 
 export async function GET() {
-  const denied = await guardAdminRequest();
+  const denied = await guardAuthenticatedRequest();
   if (denied) return denied;
   const user = await getSessionUser();
   if (!user?.id) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const token = await getClickUpAccessToken(user.id);
+  const token = await getEffectiveClickUpToken(user.id);
   if (!token) {
     return Response.json({ error: "ClickUp not connected" }, { status: 400 });
   }

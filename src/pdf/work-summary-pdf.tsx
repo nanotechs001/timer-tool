@@ -79,6 +79,11 @@ export function WorkSummaryPdfDocument({ report, client }: Props) {
         </View>
 
         <Text style={styles.h2}>{report.title}</Text>
+        {report.createdByLabel?.trim() ? (
+          <Text style={[styles.muted, { marginTop: 6, marginBottom: 8 }]}>
+            Created by {report.createdByLabel.trim()}
+          </Text>
+        ) : null}
 
         <View style={styles.tableHead}>
           <Text style={[styles.th, styles.tdTask]}>Task</Text>

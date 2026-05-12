@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -13,6 +14,7 @@ import { createPortal } from "react-dom";
 import type { Client, Report } from "@/lib/types";
 import { totalHours } from "@/lib/types";
 import { formatHours, formatSummaryCreatedAt } from "@/lib/format";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ReportPreviewDialog } from "@/components/report-preview-dialog";
 
 function toAbsoluteShareUrl(shareDisplay: string): string {
@@ -123,9 +125,14 @@ type TipPos = { x: number; y: number };
 type Props = {
   rows: SummaryRow[];
   shareBase: string;
+  isAdmin?: boolean;
 };
 
-export function WorkSummariesTable({ rows, shareBase }: Props) {
+type FolderDeleteTarget = { clientId: string; label: string; count: number };
+type ReportDeleteTarget = { reportId: string; title: string };
+
+export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) {
+  const router = useRouter();
   const [preview, setPreview] = useState<SummaryRow | null>(null);
   const [copyTip, setCopyTip] = useState<CopyTip | null>(null);
   const [tipPos, setTipPos] = useState<TipPos>({ x: 0, y: 0 });
@@ -137,6 +144,10 @@ export function WorkSummariesTable({ rows, shareBase }: Props) {
   const [dateTo, setDateTo] = useState("");
   const [folderView, setFolderView] = useState<"root" | "client">("root");
   const [openClientKey, setOpenClientKey] = useState<string | null>(null);
+  const [folderToDelete, setFolderToDelete] = useState<FolderDeleteTarget | null>(null);
+  const [folderDeleteBusy, setFolderDeleteBusy] = useState(false);
+  const [reportToDelete, setReportToDelete] = useState<ReportDeleteTarget | null>(null);
+  const [reportDeleteBusy, setReportDeleteBusy] = useState(false);
 
   const filteredRows = useMemo(
     () => filterRows(rows, search, dateFrom, dateTo),
@@ -219,10 +230,59 @@ export function WorkSummariesTable({ rows, shareBase }: Props) {
     setDateTo("");
   }, []);
 
+  async function executeDeleteFolder() {
+    if (!folderToDelete) return;
+    setFolderDeleteBusy(true);
+    try {
+      const res = await fetch(`/api/clients/${folderToDelete.clientId}`, {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok && res.status !== 204) {
+        throw new Error(typeof data.error === "string" ? data.error : "Delete failed");
+      }
+      setFolderToDelete(null);
+      setFolderView("root");
+      setOpenClientKey(null);
+      router.refresh();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Delete failed";
+      window.alert(msg);
+    } finally {
+      setFolderDeleteBusy(false);
+    }
+  }
+
+  async function executeDeleteReport() {
+    if (!reportToDelete) return;
+    setReportDeleteBusy(true);
+    try {
+      const res = await fetch(`/api/reports/${reportToDelete.reportId}`, {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok && res.status !== 204) {
+        throw new Error(typeof data.error === "string" ? data.error : "Delete failed");
+      }
+      if (preview?.report.id === reportToDelete.reportId) {
+        setPreview(null);
+      }
+      setReportToDelete(null);
+      router.refresh();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Delete failed";
+      window.alert(msg);
+    } finally {
+      setReportDeleteBusy(false);
+    }
+  }
+
   const hasActiveFilters = Boolean(search.trim() || dateFrom.trim() || dateTo.trim());
 
   const linkClass =
     "font-medium text-[#1433be] underline-offset-2 hover:underline dark:text-[#a4b4ff]";
+  const actionTextClass =
+    "text-xs font-medium text-zinc-500 transition hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200";
 
   const openFolder = (key: string) => {
     setOpenClientKey(key);
@@ -290,10 +350,11 @@ export function WorkSummariesTable({ rows, shareBase }: Props) {
 
   const renderReportTable = (list: SummaryRow[]) => (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[720px] text-left text-sm">
+      <table className="w-full min-w-[800px] text-left text-sm">
         <thead className="border-b border-zinc-100 bg-white text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:bg-surface/55">
           <tr>
             <th className="px-4 py-2.5 font-medium">Created</th>
+            <th className="px-4 py-2.5 font-medium">By</th>
             <th className="px-4 py-2.5 font-medium">Title</th>
             <th className="px-4 py-2.5 font-medium">Hours</th>
             <th className="px-4 py-2.5 font-medium">Share</th>
@@ -313,6 +374,9 @@ export function WorkSummariesTable({ rows, shareBase }: Props) {
               >
                 <td className="whitespace-nowrap px-4 py-3 tabular-nums text-xs text-zinc-600 dark:text-zinc-400">
                   {formatSummaryCreatedAt(rep.createdAt)}
+                </td>
+                <td className="max-w-[10rem] truncate px-4 py-3 text-xs text-zinc-600 dark:text-zinc-400">
+                  {rep.createdByLabel?.trim() || "—"}
                 </td>
                 <td className="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">
                   {rep.title}
@@ -340,13 +404,24 @@ export function WorkSummariesTable({ rows, shareBase }: Props) {
                     <button
                       type="button"
                       onClick={() => setPreview({ report: rep, client })}
-                      className="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                      className={actionTextClass}
                     >
                       View
                     </button>
-                    <Link href={`/reports/${rep.id}`} className={`text-sm ${linkClass}`}>
+                    <Link href={`/reports/${rep.id}`} className={actionTextClass}>
                       Edit
                     </Link>
+                    {isAdmin ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setReportToDelete({ reportId: rep.id, title: rep.title })
+                        }
+                        className={actionTextClass}
+                      >
+                        Delete
+                      </button>
+                    ) : null}
                   </div>
                 </td>
               </tr>
@@ -369,6 +444,39 @@ export function WorkSummariesTable({ rows, shareBase }: Props) {
 
   return (
     <>
+      <ConfirmDialog
+        open={reportToDelete !== null}
+        title="Delete summary?"
+        description={
+          reportToDelete
+            ? `This permanently deletes “${reportToDelete.title}” and its share link. This cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete summary"
+        cancelLabel="Cancel"
+        variant="danger"
+        busy={reportDeleteBusy}
+        onCancel={() => !reportDeleteBusy && setReportToDelete(null)}
+        onConfirm={() => void executeDeleteReport()}
+      />
+      <ConfirmDialog
+        open={folderToDelete !== null}
+        title="Delete client folder?"
+        description={
+          folderToDelete
+            ? `This permanently deletes “${folderToDelete.label}” and all ${folderToDelete.count} ${
+                folderToDelete.count === 1 ? "summary" : "summaries"
+              } in this folder. Share links will stop working. This cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete folder"
+        cancelLabel="Cancel"
+        variant="danger"
+        busy={folderDeleteBusy}
+        onCancel={() => !folderDeleteBusy && setFolderToDelete(null)}
+        onConfirm={() => void executeDeleteFolder()}
+      />
+
       {filterToolbar}
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-surface">
@@ -390,12 +498,16 @@ export function WorkSummariesTable({ rows, shareBase }: Props) {
               <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
                 {groups.map((group) => {
                   const latest = group.rows[0]?.report.createdAt;
+                  const canDeleteFolder = isAdmin && group.key !== "__none__";
                   return (
-                    <li key={group.key}>
+                    <li
+                      key={group.key}
+                      className="flex items-stretch gap-0 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                    >
                       <button
                         type="button"
                         onClick={() => openFolder(group.key)}
-                        className="flex w-full items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                        className="flex min-w-0 flex-1 items-center gap-3 px-4 py-4 text-left"
                       >
                         <span
                           className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-brand dark:border-zinc-600 dark:bg-zinc-800 dark:text-brand-on-dark"
@@ -441,6 +553,25 @@ export function WorkSummariesTable({ rows, shareBase }: Props) {
                           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                         </svg>
                       </button>
+                      {canDeleteFolder ? (
+                        <div className="flex shrink-0 items-center pr-3">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setFolderToDelete({
+                                clientId: group.key,
+                                label: group.label,
+                                count: group.rows.length,
+                              });
+                            }}
+                            className="rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
+                          >
+                            Delete folder
+                          </button>
+                        </div>
+                      ) : null}
                     </li>
                   );
                 })}

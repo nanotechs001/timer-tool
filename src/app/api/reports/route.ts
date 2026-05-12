@@ -1,10 +1,12 @@
 import {
-  guardAdminRequest,
+  guardAuthenticatedRequest,
   jsonError,
   jsonValidation,
 } from "@/lib/api-guard";
 import { createReportSchema } from "@/lib/schemas";
 import { createReport, listReports } from "@/lib/ledger";
+import { creatorDisplayLabel, getUserProfile } from "@/lib/profiles";
+import { getSessionUser } from "@/lib/supabase/server";
 import { nanoid } from "nanoid";
 import type { LineItem } from "@/lib/types";
 
@@ -25,7 +27,7 @@ function normalizeLineItems(items: LineDraft[]): LineItem[] {
 }
 
 export async function GET() {
-  const denied = await guardAdminRequest();
+  const denied = await guardAuthenticatedRequest();
   if (denied) return denied;
   try {
     const reports = await listReports();
@@ -37,8 +39,14 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const denied = await guardAdminRequest();
+  const denied = await guardAuthenticatedRequest();
   if (denied) return denied;
+  const user = await getSessionUser();
+  if (!user?.id) {
+    return jsonError("Unauthorized", 401);
+  }
+  const profile = await getUserProfile(user.id).catch(() => null);
+  const createdByLabel = creatorDisplayLabel(user, profile);
   let body: unknown;
   try {
     body = await req.json();
@@ -63,6 +71,8 @@ export async function POST(req: Request) {
       dueDate: d.dueDate,
       billFromName: d.billFromName,
       billFromEmail: d.billFromEmail === "" ? undefined : d.billFromEmail,
+      createdByUserId: user.id,
+      createdByLabel,
     });
     return Response.json(report);
   } catch (e) {

@@ -9,7 +9,10 @@ function isProtectedPath(path: string) {
     path.startsWith("/reports") ||
     path.startsWith("/settings");
   const isProtectedApi =
-    path.startsWith("/api/clients") || path.startsWith("/api/reports");
+    path.startsWith("/api/clients") ||
+    path.startsWith("/api/reports") ||
+    path.startsWith("/api/clickup") ||
+    path.startsWith("/api/admin");
   return { isProtectedPage, isProtectedApi, isProtected: isProtectedPage || isProtectedApi };
 }
 

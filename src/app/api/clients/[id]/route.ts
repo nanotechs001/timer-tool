@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
-  guardAdminRequest,
+  guardAdminOnlyRequest,
+  guardAuthenticatedRequest,
   jsonError,
   jsonValidation,
 } from "@/lib/api-guard";
@@ -12,7 +13,7 @@ type Ctx = { params: Promise<{ id: string }> };
 const uuid = z.string().uuid();
 
 export async function GET(_req: Request, ctx: Ctx) {
-  const denied = await guardAdminRequest();
+  const denied = await guardAuthenticatedRequest();
   if (denied) return denied;
   const { id } = await ctx.params;
   if (!uuid.safeParse(id).success) return jsonError("Invalid id");
@@ -27,7 +28,7 @@ export async function GET(_req: Request, ctx: Ctx) {
 }
 
 export async function PATCH(req: Request, ctx: Ctx) {
-  const denied = await guardAdminRequest();
+  const denied = await guardAuthenticatedRequest();
   if (denied) return denied;
   const { id } = await ctx.params;
   if (!uuid.safeParse(id).success) return jsonError("Invalid id");
@@ -52,7 +53,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
 }
 
 export async function DELETE(_req: Request, ctx: Ctx) {
-  const denied = await guardAdminRequest();
+  const denied = await guardAdminOnlyRequest();
   if (denied) return denied;
   const { id } = await ctx.params;
   if (!uuid.safeParse(id).success) return jsonError("Invalid id");

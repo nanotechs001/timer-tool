@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { isDatabaseConfigured, publicAppUrl } from "@/lib/config";
 import { listClients, listReports } from "@/lib/ledger";
+import { isUserAdmin } from "@/lib/profiles";
+import { getSessionUser } from "@/lib/supabase/server";
 import { WorkSummariesTable } from "@/components/work-summaries-table";
 
 export default async function DashboardPage() {
@@ -28,6 +30,9 @@ export default async function DashboardPage() {
     client: rep.clientId ? (clientById.get(rep.clientId) ?? null) : null,
   }));
 
+  const user = await getSessionUser().catch(() => null);
+  const isAdmin = user?.id ? await isUserAdmin(user.id) : false;
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -52,7 +57,7 @@ export default async function DashboardPage() {
           {err}
         </p>
       ) : (
-        <WorkSummariesTable rows={rows} shareBase={base} />
+        <WorkSummariesTable rows={rows} shareBase={base} isAdmin={isAdmin} />
       )}
     </div>
   );

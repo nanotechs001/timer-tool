@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAuthConfigured, isDatabaseConfigured } from "@/lib/config";
+import { isUserAdmin } from "@/lib/profiles";
 import { getSessionUser } from "@/lib/supabase/server";
 
 export function supabaseNotConfiguredResponse() {
@@ -36,11 +37,30 @@ export async function guardAuthSession(): Promise<NextResponse | null> {
   return null;
 }
 
-/** Admin JSON APIs: authenticated user + database keys. */
-export async function guardAdminRequest(): Promise<NextResponse | null> {
+/** Authenticated JSON APIs: valid session + database keys (any logged-in user). */
+export async function guardAuthenticatedRequest(): Promise<NextResponse | null> {
   const authDenied = await guardAuthSession();
   if (authDenied) return authDenied;
   return guardDatabase();
+}
+
+/** @deprecated Use guardAuthenticatedRequest or guardAdminOnlyRequest. */
+export async function guardAdminRequest(): Promise<NextResponse | null> {
+  return guardAuthenticatedRequest();
+}
+
+/** Admin-only JSON APIs (integrations, team management). */
+export async function guardAdminOnlyRequest(): Promise<NextResponse | null> {
+  const base = await guardAuthenticatedRequest();
+  if (base) return base;
+  const user = await getSessionUser().catch(() => null);
+  if (!user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!(await isUserAdmin(user.id))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  return null;
 }
 
 export function jsonError(message: string, status = 400) {

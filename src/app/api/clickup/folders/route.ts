@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { guardAdminRequest } from "@/lib/api-guard";
+import { guardAuthenticatedRequest } from "@/lib/api-guard";
 import { getFolders } from "@/lib/clickup/client";
-import { getClickUpAccessToken } from "@/lib/clickup/store";
+import { getEffectiveClickUpToken } from "@/lib/clickup/store";
 import { getSessionUser } from "@/lib/supabase/server";
 
 export async function GET(req: Request) {
-  const denied = await guardAdminRequest();
+  const denied = await guardAuthenticatedRequest();
   if (denied) return denied;
   const user = await getSessionUser();
   if (!user?.id) {
@@ -15,7 +15,7 @@ export async function GET(req: Request) {
   if (!spaceId) {
     return NextResponse.json({ error: "Missing spaceId" }, { status: 400 });
   }
-  const token = await getClickUpAccessToken(user.id);
+  const token = await getEffectiveClickUpToken(user.id);
   if (!token) {
     return NextResponse.json({ error: "ClickUp not connected" }, { status: 400 });
   }

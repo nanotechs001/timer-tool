@@ -5,6 +5,7 @@ import {
   getClickUpClientSecret,
 } from "@/lib/clickup/config";
 import { saveClickUpAccessToken } from "@/lib/clickup/store";
+import { isUserAdmin } from "@/lib/profiles";
 import { getSessionUser } from "@/lib/supabase/server";
 import { isDatabaseConfigured } from "@/lib/config";
 
@@ -34,6 +35,11 @@ export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user?.id) {
     const res = NextResponse.redirect(new URL("/", request.url));
+    res.cookies.delete(STATE_COOKIE);
+    return res;
+  }
+  if (!(await isUserAdmin(user.id))) {
+    const res = fail("forbidden");
     res.cookies.delete(STATE_COOKIE);
     return res;
   }

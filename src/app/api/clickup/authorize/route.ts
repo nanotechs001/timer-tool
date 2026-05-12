@@ -6,14 +6,18 @@ import {
   getClickUpClientId,
   isClickUpOAuthConfigured,
 } from "@/lib/clickup/config";
+import { isUserAdmin } from "@/lib/profiles";
 import { getSessionUser } from "@/lib/supabase/server";
 
 const STATE_COOKIE = "clickup_oauth_state";
 
 export async function GET(request: Request) {
   const user = await getSessionUser();
-  if (!user) {
+  if (!user?.id) {
     return NextResponse.redirect(new URL("/", request.url));
+  }
+  if (!(await isUserAdmin(user.id))) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
   }
   if (!isClickUpOAuthConfigured()) {
     return NextResponse.redirect(
