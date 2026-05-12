@@ -4,7 +4,8 @@ export type LineItem = {
   hours: number;
   /** Kept for backward compatibility; UI focuses on hours, not billing. */
   rate: number;
-  resourceUrl?: string;
+  /** Per-task notes (manual entry only; not set from ClickUp import). */
+  notes?: string;
 };
 
 export type Client = {
@@ -13,6 +14,13 @@ export type Client = {
   email: string;
   company: string;
   notes: string;
+  /** ClickUp hierarchy for this client (empty strings = not linked). */
+  clickupTeamId: string;
+  clickupSpaceId: string;
+  /** Folder id when the client maps to a ClickUp folder; empty if folderless list. */
+  clickupFolderId: string;
+  /** Default list (e.g. chat channel) under the folder or space. */
+  clickupListId: string;
 };
 
 /** Stored in `reports` — work log / task summary (not a bill). */
@@ -28,6 +36,8 @@ export type Report = {
   dueDate: string;
   billFromName: string;
   billFromEmail: string;
+  /** ISO timestamp from DB `created_at`. */
+  createdAt: string;
 };
 
 export function lineSubtotal(item: LineItem): number {

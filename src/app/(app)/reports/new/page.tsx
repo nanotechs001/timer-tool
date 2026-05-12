@@ -15,7 +15,7 @@ export default async function NewReportPage() {
 
   return (
     <div>
-      <div className="border-b border-zinc-100 bg-white px-4 py-6 dark:border-zinc-900 dark:bg-zinc-950">
+      <div className="border-b border-zinc-100 bg-white px-4 py-6 dark:border-zinc-900 dark:bg-surface">
         <h1 className="mx-auto max-w-3xl text-2xl font-semibold tracking-tight">
           New work summary
         </h1>

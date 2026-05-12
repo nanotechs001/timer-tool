@@ -37,6 +37,10 @@ export async function POST(req: Request) {
       email: parsed.data.email ?? "",
       company: parsed.data.company ?? "",
       notes: parsed.data.notes ?? "",
+      clickupTeamId: parsed.data.clickupTeamId,
+      clickupSpaceId: parsed.data.clickupSpaceId,
+      clickupFolderId: parsed.data.clickupFolderId,
+      clickupListId: parsed.data.clickupListId,
     });
     return Response.json(client);
   } catch (e) {

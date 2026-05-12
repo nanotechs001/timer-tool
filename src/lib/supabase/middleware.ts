@@ -6,7 +6,8 @@ function isProtectedPath(path: string) {
   const isProtectedPage =
     path.startsWith("/dashboard") ||
     path.startsWith("/clients") ||
-    path.startsWith("/reports");
+    path.startsWith("/reports") ||
+    path.startsWith("/settings");
   const isProtectedApi =
     path.startsWith("/api/clients") || path.startsWith("/api/reports");
   return { isProtectedPage, isProtectedApi, isProtected: isProtectedPage || isProtectedApi };
@@ -16,7 +17,7 @@ export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
   const path = request.nextUrl.pathname;
-  const { isProtectedPage, isProtectedApi, isProtected } = isProtectedPath(path);
+  const { isProtectedApi, isProtected } = isProtectedPath(path);
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
   const anon = getSupabaseAnonKey();

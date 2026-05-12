@@ -1,13 +1,6 @@
-import {
-  Document,
-  Link,
-  Page,
-  StyleSheet,
-  Text,
-  View,
-} from "@react-pdf/renderer";
+import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import type { Client, Report } from "@/lib/types";
-import { formatHours } from "@/lib/format";
+import { formatHours, formatReportPeriodLine } from "@/lib/format";
 import { totalHours } from "@/lib/types";
 
 const styles = StyleSheet.create({
@@ -17,7 +10,12 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica",
     color: "#111827",
   },
-  brand: { fontSize: 16, fontFamily: "Helvetica-Bold", marginBottom: 4 },
+  brand: {
+    fontSize: 16,
+    fontFamily: "Helvetica-Bold",
+    marginBottom: 4,
+    color: "#1433be",
+  },
   sub: { fontSize: 9, color: "#6b7280", marginBottom: 16 },
   row: { flexDirection: "row", justifyContent: "space-between", marginBottom: 14 },
   box: { width: "48%" },
@@ -39,7 +37,7 @@ const styles = StyleSheet.create({
   },
   tdTask: { width: "62%" },
   tdHours: { width: "15%", textAlign: "right" },
-  tdLink: { width: "23%" },
+  tdNotes: { width: "23%" },
   totals: { marginTop: 16, alignItems: "flex-end" },
   grand: { fontSize: 12, fontFamily: "Helvetica-Bold" },
   notes: { marginTop: 20, fontSize: 9, color: "#4b5563" },
@@ -57,11 +55,7 @@ export function WorkSummaryPdfDocument({ report, client }: Props) {
     <Document>
       <Page size="A4" style={styles.page}>
         <Text style={styles.brand}>Work summary</Text>
-        <Text style={styles.sub}>
-          {report.issueDate ? report.issueDate : ""}
-          {report.issueDate && report.dueDate ? " · " : ""}
-          {report.dueDate ? report.dueDate : ""}
-        </Text>
+        <Text style={styles.sub}>{formatReportPeriodLine(report.issueDate, report.dueDate)}</Text>
 
         <View style={styles.row}>
           <View style={styles.box}>
@@ -89,18 +83,16 @@ export function WorkSummaryPdfDocument({ report, client }: Props) {
         <View style={styles.tableHead}>
           <Text style={[styles.th, styles.tdTask]}>Task</Text>
           <Text style={[styles.th, styles.tdHours]}>Hours</Text>
-          <Text style={[styles.th, styles.tdLink]}>Reference</Text>
+          <Text style={[styles.th, styles.tdNotes]}>Notes</Text>
         </View>
 
         {report.lineItems.map((item) => (
           <View key={item.id} style={styles.tr} wrap={false}>
             <Text style={styles.tdTask}>{item.task}</Text>
             <Text style={styles.tdHours}>{formatHours(item.hours)}</Text>
-            <View style={styles.tdLink}>
-              {item.resourceUrl ? (
-                <Link src={item.resourceUrl} style={{ fontSize: 8, color: "#2563eb" }}>
-                  Link
-                </Link>
+            <View style={styles.tdNotes}>
+              {item.notes ? (
+                <Text style={{ fontSize: 8 }}>{item.notes}</Text>
               ) : (
                 <Text style={styles.muted}>—</Text>
               )}

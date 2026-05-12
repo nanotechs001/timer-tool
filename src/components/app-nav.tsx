@@ -8,6 +8,7 @@ const links = [
   { href: "/dashboard", label: "Summaries" },
   { href: "/clients", label: "Clients" },
   { href: "/reports/new", label: "New summary" },
+  { href: "/settings/integrations", label: "Integrations" },
 ];
 
 type Props = {
@@ -17,11 +18,11 @@ type Props = {
 export function AppNav({ userEmail }: Props) {
   const ready = isAppConfigured();
   return (
-    <header className="border-b border-zinc-200/80 bg-white/90 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90">
+    <header className="sticky top-0 z-50 border-b border-zinc-200/80 bg-white/90 backdrop-blur-md dark:border-zinc-800 dark:bg-background/88">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
         <Link
           href="/dashboard"
-          className="flex shrink-0 items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-md"
+          className="flex shrink-0 items-center rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
         >
           <BrandLogo priority />
         </Link>

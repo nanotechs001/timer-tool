@@ -5,7 +5,7 @@ type Props = {
   priority?: boolean;
 };
 
-/** Logo asset: grey on dark — invert in dark mode for contrast on zinc-950. */
+/** Logo asset: grey on dark — invert in dark mode for contrast on elevated surfaces. */
 export function BrandLogo({ className = "", priority = false }: Props) {
   return (
     <Image

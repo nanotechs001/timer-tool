@@ -34,13 +34,13 @@ export default async function EditReportPage({ params }: Props) {
 
   return (
     <div>
-      <div className="border-b border-zinc-100 bg-white px-4 py-6 dark:border-zinc-900 dark:bg-zinc-950">
+      <div className="border-b border-zinc-100 bg-white px-4 py-6 dark:border-zinc-900 dark:bg-surface">
         <div className="mx-auto flex max-w-3xl flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Edit summary</h1>
             <p className="mt-1 text-sm text-zinc-500">
               Public link:{" "}
-              <span className="font-mono text-xs text-indigo-600 dark:text-indigo-400">
+              <span className="font-mono text-xs text-brand dark:text-brand-on-dark">
                 {shareUrl}
               </span>
             </p>
@@ -48,6 +48,8 @@ export default async function EditReportPage({ params }: Props) {
           <div className="flex gap-2 text-sm">
             <Link
               href={`/r/${report.slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
               className="rounded-xl border border-zinc-200 px-3 py-1.5 font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
             >
               Open public page

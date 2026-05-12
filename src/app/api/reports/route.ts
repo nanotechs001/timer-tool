@@ -13,7 +13,7 @@ type LineDraft = {
   task: string;
   hours: number;
   rate?: number;
-  resourceUrl?: string;
+  notes?: string;
 };
 
 function normalizeLineItems(items: LineDraft[]): LineItem[] {

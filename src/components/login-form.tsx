@@ -16,6 +16,7 @@ export function LoginForm() {
 
   useEffect(() => {
     if (searchParams.get("error") === "auth_config") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- derive banner from URL once
       setError(
         "Server auth is not configured. Add NEXT_PUBLIC_SUPABASE_ANON_KEY (or PUBLISHABLE_KEY) to .env.local, then restart the dev server."
       );
@@ -65,7 +66,7 @@ export function LoginForm() {
       </div>
       <form
         onSubmit={onSubmit}
-        className="w-full space-y-4 rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+        className="w-full space-y-4 rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-surface"
       >
         <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">Admin sign in</p>
         {error ? (
@@ -102,7 +103,7 @@ export function LoginForm() {
         <button
           type="submit"
           disabled={busy}
-          className="w-full rounded-xl bg-indigo-600 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+          className="w-full rounded-xl bg-brand py-2.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
         >
           {busy ? "Signing in…" : "Sign in"}
         </button>

@@ -6,6 +6,10 @@ create table if not exists public.clients (
   email text not null default '',
   company text not null default '',
   notes text not null default '',
+  clickup_team_id text not null default '',
+  clickup_space_id text not null default '',
+  clickup_folder_id text not null default '',
+  clickup_list_id text not null default '',
   created_at timestamptz not null default now()
 );
 
@@ -27,3 +31,12 @@ create table if not exists public.reports (
 
 create index if not exists reports_slug_idx on public.reports (slug);
 create index if not exists reports_client_id_idx on public.reports (client_id);
+
+-- ClickUp OAuth (one row per Supabase user; server-only access via service role)
+create table if not exists public.clickup_connections (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  access_token text not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.clickup_connections enable row level security;

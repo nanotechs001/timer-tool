@@ -5,11 +5,11 @@ export const lineItemSchema = z.object({
   task: z.string().trim().min(1, "Task is required"),
   hours: z.coerce.number().nonnegative(),
   rate: z.coerce.number().nonnegative().optional(),
-  resourceUrl: z.preprocess((v) => {
+  notes: z.preprocess((v) => {
     if (v === undefined || v === null) return undefined;
     const s = String(v).trim();
     return s === "" ? undefined : s;
-  }, z.string().url().optional()),
+  }, z.string().max(4000).optional()),
 });
 
 export const createClientSchema = z.object({
@@ -17,6 +17,10 @@ export const createClientSchema = z.object({
   email: z.union([z.string().trim().email(), z.literal("")]).optional(),
   company: z.string().trim().optional(),
   notes: z.string().trim().optional(),
+  clickupTeamId: z.string().trim().max(64).optional(),
+  clickupSpaceId: z.string().trim().max(64).optional(),
+  clickupFolderId: z.string().trim().max(64).optional(),
+  clickupListId: z.string().trim().max(64).optional(),
 });
 
 export const updateClientSchema = createClientSchema.partial();

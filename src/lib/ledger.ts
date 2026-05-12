@@ -1,6 +1,9 @@
 import type { Client, LineItem, Report } from "@/lib/types";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
+const REPORT_COLUMNS =
+  "id,slug,title,client_id,line_items,currency,notes,issue_date,due_date,bill_from_name,bill_from_email,created_at";
+
 function parseLineItems(raw: unknown): LineItem[] {
   if (!raw) return [];
   if (!Array.isArray(raw)) return [];
@@ -8,15 +11,40 @@ function parseLineItems(raw: unknown): LineItem[] {
     .map((row) => {
       if (!row || typeof row !== "object") return null;
       const o = row as Record<string, unknown>;
+      const legacyUrl =
+        o.resourceUrl && typeof o.resourceUrl === "string"
+          ? String(o.resourceUrl).trim()
+          : "";
+      const lineNotes =
+        o.notes != null && String(o.notes).trim() !== ""
+          ? String(o.notes)
+          : legacyUrl || undefined;
       return {
         id: String(o.id ?? crypto.randomUUID()),
         task: String(o.task ?? ""),
         hours: Number(o.hours) || 0,
         rate: Number(o.rate) || 0,
-        resourceUrl: o.resourceUrl ? String(o.resourceUrl) : undefined,
+        notes: lineNotes,
       } satisfies LineItem;
     })
     .filter(Boolean) as LineItem[];
+}
+
+const CLIENT_COLUMNS =
+  "id,name,email,company,notes,clickup_team_id,clickup_space_id,clickup_folder_id,clickup_list_id";
+
+const LEGACY_CLIENT_COLUMNS = "id,name,email,company,notes";
+
+/** PostgREST errors before migration or stale schema cache. */
+function isMissingClickupColumnsError(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes("clickup_team_id") ||
+    m.includes("clickup_space_id") ||
+    m.includes("clickup_folder_id") ||
+    m.includes("clickup_list_id") ||
+    (m.includes("schema cache") && m.includes("clients"))
+  );
 }
 
 function mapClientRow(r: {
@@ -25,6 +53,10 @@ function mapClientRow(r: {
   email: string | null;
   company: string | null;
   notes: string | null;
+  clickup_team_id?: string | null;
+  clickup_space_id?: string | null;
+  clickup_folder_id?: string | null;
+  clickup_list_id?: string | null;
 }): Client {
   return {
     id: r.id,
@@ -32,6 +64,10 @@ function mapClientRow(r: {
     email: r.email ?? "",
     company: r.company ?? "",
     notes: r.notes ?? "",
+    clickupTeamId: String(r.clickup_team_id ?? "").trim(),
+    clickupSpaceId: String(r.clickup_space_id ?? "").trim(),
+    clickupFolderId: String(r.clickup_folder_id ?? "").trim(),
+    clickupListId: String(r.clickup_list_id ?? "").trim(),
   };
 }
 
@@ -47,6 +83,7 @@ function mapReportRow(r: {
   due_date: string | null;
   bill_from_name: string | null;
   bill_from_email: string | null;
+  created_at?: string | null;
 }): Report {
   return {
     id: r.id,
@@ -60,28 +97,50 @@ function mapReportRow(r: {
     dueDate: r.due_date ?? "",
     billFromName: r.bill_from_name ?? "",
     billFromEmail: r.bill_from_email ?? "",
+    createdAt: r.created_at ?? "",
   };
 }
 
 export async function listClients(): Promise<Client[]> {
   const sb = createSupabaseAdmin();
-  const { data, error } = await sb
+  const first = await sb
     .from("clients")
-    .select("id,name,email,company,notes")
+    .select(CLIENT_COLUMNS)
     .order("name", { ascending: true });
-  if (error) throw new Error(error.message);
-  return (data ?? []).map(mapClientRow);
+  if (first.error) {
+    if (!isMissingClickupColumnsError(first.error.message)) {
+      throw new Error(first.error.message);
+    }
+    const legacy = await sb
+      .from("clients")
+      .select(LEGACY_CLIENT_COLUMNS)
+      .order("name", { ascending: true });
+    if (legacy.error) throw new Error(legacy.error.message);
+    return (legacy.data ?? []).map(mapClientRow);
+  }
+  return (first.data ?? []).map(mapClientRow);
 }
 
 export async function getClient(id: string): Promise<Client | null> {
   const sb = createSupabaseAdmin();
-  const { data, error } = await sb
+  const first = await sb
     .from("clients")
-    .select("id,name,email,company,notes")
+    .select(CLIENT_COLUMNS)
     .eq("id", id)
     .maybeSingle();
-  if (error) throw new Error(error.message);
-  return data ? mapClientRow(data) : null;
+  if (first.error) {
+    if (!isMissingClickupColumnsError(first.error.message)) {
+      throw new Error(first.error.message);
+    }
+    const legacy = await sb
+      .from("clients")
+      .select(LEGACY_CLIENT_COLUMNS)
+      .eq("id", id)
+      .maybeSingle();
+    if (legacy.error) throw new Error(legacy.error.message);
+    return legacy.data ? mapClientRow(legacy.data) : null;
+  }
+  return first.data ? mapClientRow(first.data) : null;
 }
 
 export async function createClient(input: {
@@ -89,20 +148,43 @@ export async function createClient(input: {
   email?: string;
   company?: string;
   notes?: string;
+  clickupTeamId?: string;
+  clickupSpaceId?: string;
+  clickupFolderId?: string;
+  clickupListId?: string;
 }): Promise<Client> {
   const sb = createSupabaseAdmin();
-  const { data, error } = await sb
-    .from("clients")
-    .insert({
-      name: input.name,
-      email: input.email ?? "",
-      company: input.company ?? "",
-      notes: input.notes ?? "",
-    })
-    .select("id,name,email,company,notes")
-    .single();
-  if (error) throw new Error(error.message);
-  return mapClientRow(data);
+  const fullRow = {
+    name: input.name,
+    email: input.email ?? "",
+    company: input.company ?? "",
+    notes: input.notes ?? "",
+    clickup_team_id: input.clickupTeamId?.trim() ?? "",
+    clickup_space_id: input.clickupSpaceId?.trim() ?? "",
+    clickup_folder_id: input.clickupFolderId?.trim() ?? "",
+    clickup_list_id: input.clickupListId?.trim() ?? "",
+  };
+  const ins = await sb.from("clients").insert(fullRow).select(CLIENT_COLUMNS).single();
+  if (ins.error) {
+    if (!isMissingClickupColumnsError(ins.error.message)) {
+      throw new Error(ins.error.message);
+    }
+    const legacy = await sb
+      .from("clients")
+      .insert({
+        name: fullRow.name,
+        email: fullRow.email,
+        company: fullRow.company,
+        notes: fullRow.notes,
+      })
+      .select(LEGACY_CLIENT_COLUMNS)
+      .single();
+    if (legacy.error) throw new Error(legacy.error.message);
+    if (!legacy.data) throw new Error("Insert failed");
+    return mapClientRow(legacy.data);
+  }
+  if (!ins.data) throw new Error("Insert failed");
+  return mapClientRow(ins.data);
 }
 
 export async function updateClient(
@@ -112,6 +194,10 @@ export async function updateClient(
     email: string;
     company: string;
     notes: string;
+    clickupTeamId: string;
+    clickupSpaceId: string;
+    clickupFolderId: string;
+    clickupListId: string;
   }>
 ): Promise<Client> {
   const current = await getClient(id);
@@ -121,21 +207,61 @@ export async function updateClient(
     email: input.email ?? current.email,
     company: input.company ?? current.company,
     notes: input.notes ?? current.notes,
+    clickupTeamId:
+      input.clickupTeamId !== undefined
+        ? input.clickupTeamId.trim()
+        : current.clickupTeamId,
+    clickupSpaceId:
+      input.clickupSpaceId !== undefined
+        ? input.clickupSpaceId.trim()
+        : current.clickupSpaceId,
+    clickupFolderId:
+      input.clickupFolderId !== undefined
+        ? input.clickupFolderId.trim()
+        : current.clickupFolderId,
+    clickupListId:
+      input.clickupListId !== undefined
+        ? input.clickupListId.trim()
+        : current.clickupListId,
   };
   const sb = createSupabaseAdmin();
-  const { data, error } = await sb
+  const fullPatch = {
+    name: merged.name,
+    email: merged.email,
+    company: merged.company,
+    notes: merged.notes,
+    clickup_team_id: merged.clickupTeamId,
+    clickup_space_id: merged.clickupSpaceId,
+    clickup_folder_id: merged.clickupFolderId,
+    clickup_list_id: merged.clickupListId,
+  };
+  const upd = await sb
     .from("clients")
-    .update({
-      name: merged.name,
-      email: merged.email,
-      company: merged.company,
-      notes: merged.notes,
-    })
+    .update(fullPatch)
     .eq("id", id)
-    .select("id,name,email,company,notes")
+    .select(CLIENT_COLUMNS)
     .single();
-  if (error) throw new Error(error.message);
-  return mapClientRow(data);
+  if (upd.error) {
+    if (!isMissingClickupColumnsError(upd.error.message)) {
+      throw new Error(upd.error.message);
+    }
+    const legacy = await sb
+      .from("clients")
+      .update({
+        name: merged.name,
+        email: merged.email,
+        company: merged.company,
+        notes: merged.notes,
+      })
+      .eq("id", id)
+      .select(LEGACY_CLIENT_COLUMNS)
+      .single();
+    if (legacy.error) throw new Error(legacy.error.message);
+    if (!legacy.data) throw new Error("Update failed");
+    return mapClientRow(legacy.data);
+  }
+  if (!upd.data) throw new Error("Update failed");
+  return mapClientRow(upd.data);
 }
 
 export async function deleteClient(id: string): Promise<void> {
@@ -148,9 +274,7 @@ export async function listReports(): Promise<Report[]> {
   const sb = createSupabaseAdmin();
   const { data, error } = await sb
     .from("reports")
-    .select(
-      "id,slug,title,client_id,line_items,currency,notes,issue_date,due_date,bill_from_name,bill_from_email"
-    )
+    .select(REPORT_COLUMNS)
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []).map(mapReportRow);
@@ -160,9 +284,7 @@ export async function getReport(id: string): Promise<Report | null> {
   const sb = createSupabaseAdmin();
   const { data, error } = await sb
     .from("reports")
-    .select(
-      "id,slug,title,client_id,line_items,currency,notes,issue_date,due_date,bill_from_name,bill_from_email"
-    )
+    .select(REPORT_COLUMNS)
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -173,9 +295,7 @@ export async function getReportBySlug(slug: string): Promise<Report | null> {
   const sb = createSupabaseAdmin();
   const { data, error } = await sb
     .from("reports")
-    .select(
-      "id,slug,title,client_id,line_items,currency,notes,issue_date,due_date,bill_from_name,bill_from_email"
-    )
+    .select(REPORT_COLUMNS)
     .eq("slug", slug)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -209,9 +329,7 @@ export async function createReport(input: {
       bill_from_name: input.billFromName ?? "",
       bill_from_email: input.billFromEmail ?? "",
     })
-    .select(
-      "id,slug,title,client_id,line_items,currency,notes,issue_date,due_date,bill_from_name,bill_from_email"
-    )
+    .select(REPORT_COLUMNS)
     .single();
   if (error) throw new Error(error.message);
   return mapReportRow(data);
@@ -260,9 +378,7 @@ export async function updateReport(
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
-    .select(
-      "id,slug,title,client_id,line_items,currency,notes,issue_date,due_date,bill_from_name,bill_from_email"
-    )
+    .select(REPORT_COLUMNS)
     .single();
   if (error) throw new Error(error.message);
   return mapReportRow(data);
