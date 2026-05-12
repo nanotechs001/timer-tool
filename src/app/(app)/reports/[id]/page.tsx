@@ -1,0 +1,67 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { z } from "zod";
+import { isDatabaseConfigured } from "@/lib/config";
+import { getReport, listClients } from "@/lib/ledger";
+import { ReportForm } from "@/components/report-form";
+import { resolveShareBase } from "@/lib/share-base";
+
+type Props = { params: Promise<{ id: string }> };
+
+const uuid = z.string().uuid();
+
+export default async function EditReportPage({ params }: Props) {
+  if (!isDatabaseConfigured()) {
+    return (
+      <div className="mx-auto max-w-lg px-4 py-16 text-center text-sm text-zinc-600">
+        Configure Supabase to edit summaries.
+      </div>
+    );
+  }
+
+  const { id } = await params;
+  if (!uuid.safeParse(id).success) notFound();
+
+  const [report, clients, shareBase] = await Promise.all([
+    getReport(id),
+    listClients().catch(() => []),
+    resolveShareBase(),
+  ]);
+
+  if (!report) notFound();
+
+  const shareUrl = `${shareBase.replace(/\/$/, "")}/r/${report.slug}`;
+
+  return (
+    <div>
+      <div className="border-b border-zinc-100 bg-white px-4 py-6 dark:border-zinc-900 dark:bg-zinc-950">
+        <div className="mx-auto flex max-w-3xl flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Edit summary</h1>
+            <p className="mt-1 text-sm text-zinc-500">
+              Public link:{" "}
+              <span className="font-mono text-xs text-indigo-600 dark:text-indigo-400">
+                {shareUrl}
+              </span>
+            </p>
+          </div>
+          <div className="flex gap-2 text-sm">
+            <Link
+              href={`/r/${report.slug}`}
+              className="rounded-xl border border-zinc-200 px-3 py-1.5 font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
+            >
+              Open public page
+            </Link>
+            <a
+              href={`/api/pdf/${encodeURIComponent(report.slug)}`}
+              className="rounded-xl bg-zinc-900 px-3 py-1.5 font-medium text-white hover:bg-zinc-800"
+            >
+              PDF
+            </a>
+          </div>
+        </div>
+      </div>
+      <ReportForm clients={clients} mode="edit" initial={report} />
+    </div>
+  );
+}
