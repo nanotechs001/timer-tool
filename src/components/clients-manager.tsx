@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import type { Client } from "@/lib/types";
 import {
   ClickUpChannelSearchButton,
@@ -21,6 +21,69 @@ export function ClientsManager({ initialClients, isAdmin = false }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [removeId, setRemoveId] = useState<string | null>(null);
   const [clickupPick, setClickupPick] = useState<ClientLocationPick | null>(null);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editCompany, setEditCompany] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [editClickupPick, setEditClickupPick] = useState<ClientLocationPick | null>(null);
+
+  useEffect(() => {
+    setClients(initialClients);
+  }, [initialClients]);
+
+  function openEdit(c: Client) {
+    setEditingId(c.id);
+    setEditName(c.name);
+    setEditEmail(c.email);
+    setEditCompany(c.company);
+    setEditNotes(c.notes);
+    setEditClickupPick(null);
+    setError(null);
+  }
+
+  function closeEdit() {
+    setEditingId(null);
+    setEditClickupPick(null);
+  }
+
+  async function saveEdit(e: FormEvent) {
+    e.preventDefault();
+    if (!editingId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const body: Record<string, string | undefined> = {
+        name: editName.trim(),
+        email: editEmail.trim(),
+        company: editCompany.trim(),
+        notes: editNotes.trim(),
+      };
+      if (editClickupPick) {
+        body.clickupTeamId = editClickupPick.teamId || undefined;
+        body.clickupSpaceId = editClickupPick.spaceId || undefined;
+        body.clickupFolderId = editClickupPick.folderId || undefined;
+        body.clickupListId = editClickupPick.listId || undefined;
+      }
+      const res = await fetch(`/api/clients/${editingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Failed to save client");
+      setClients((list) =>
+        list.map((x) => (x.id === editingId ? (data as Client) : x)).sort((a, b) => a.name.localeCompare(b.name))
+      );
+      closeEdit();
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function addClient(e: FormEvent) {
     e.preventDefault();
@@ -68,6 +131,7 @@ export function ClientsManager({ initialClients, isAdmin = false }: Props) {
       }
       setClients((c) => c.filter((x) => x.id !== id));
       setRemoveId(null);
+      if (id === editingId) closeEdit();
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error");
@@ -180,25 +244,121 @@ export function ClientsManager({ initialClients, isAdmin = false }: Props) {
             </li>
           ) : (
             clients.map((c) => (
-              <li
-                key={c.id}
-                className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm"
-              >
-                <div>
-                  <p className="font-medium text-zinc-900 dark:text-zinc-100">{c.name}</p>
-                  <p className="text-xs text-zinc-500">
-                    {[c.company, c.email].filter(Boolean).join(" · ") || "—"}
-                  </p>
+              <li key={c.id} className="px-4 py-3 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="font-medium text-zinc-900 dark:text-zinc-100">{c.name}</p>
+                    <p className="text-xs text-zinc-500">
+                      {[c.company, c.email].filter(Boolean).join(" · ") || "—"}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => (editingId === c.id ? closeEdit() : openEdit(c))}
+                      className="text-xs font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
+                    >
+                      {editingId === c.id ? "Cancel" : "Edit"}
+                    </button>
+                    {isAdmin ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => setRemoveId(c.id)}
+                        className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+                      >
+                        Delete
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
-                {isAdmin ? (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => setRemoveId(c.id)}
-                    className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+                {editingId === c.id ? (
+                  <form
+                    onSubmit={saveEdit}
+                    className="mt-4 space-y-4 border-t border-zinc-100 pt-4 dark:border-zinc-800"
                   >
-                    Delete
-                  </button>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                        Name
+                      </span>
+                      <input
+                        required
+                        className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm dark:border-zinc-800 dark:bg-zinc-900"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                      />
+                    </label>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                          Email
+                        </span>
+                        <input
+                          type="email"
+                          className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm dark:border-zinc-800 dark:bg-zinc-900"
+                          value={editEmail}
+                          onChange={(e) => setEditEmail(e.target.value)}
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                          Company
+                        </span>
+                        <input
+                          className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm dark:border-zinc-800 dark:bg-zinc-900"
+                          value={editCompany}
+                          onChange={(e) => {
+                            setEditCompany(e.target.value);
+                            setEditClickupPick(null);
+                          }}
+                        />
+                      </label>
+                    </div>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                        Notes
+                      </span>
+                      <textarea
+                        rows={2}
+                        className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm dark:border-zinc-800 dark:bg-zinc-900"
+                        value={editNotes}
+                        onChange={(e) => setEditNotes(e.target.value)}
+                      />
+                    </label>
+                    <div>
+                      <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                        Update ClickUp link (optional)
+                      </span>
+                      <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
+                        Pick a folder or list to refresh company name and saved ClickUp path. Leave
+                        untouched to keep the current link.
+                      </p>
+                      <ClickUpChannelSearchButton
+                        onPick={(p) => {
+                          setEditCompany(p.clientName);
+                          setEditClickupPick(p);
+                        }}
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="submit"
+                        disabled={busy}
+                        className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+                      >
+                        {busy ? "Saving…" : "Save changes"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => closeEdit()}
+                        className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
                 ) : null}
               </li>
             ))
