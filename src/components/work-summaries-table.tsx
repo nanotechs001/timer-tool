@@ -208,9 +208,6 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
 
   const hasActiveFilters = Boolean(search.trim() || dateFrom.trim() || dateTo.trim());
 
-  const actionTextClass =
-    "cursor-pointer text-xs font-medium text-zinc-500 transition hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200";
-
   const openFolder = (key: string) => {
     setOpenClientKey(key);
     setFolderView("client");
@@ -284,7 +281,7 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
             <th className="px-4 py-2.5 font-medium">By</th>
             <th className="px-4 py-2.5 font-medium">Title</th>
             <th className="px-4 py-2.5 font-medium">Worked / total</th>
-            <th className="px-4 py-2.5 font-medium">Share</th>
+            <th className="px-4 py-2.5 font-medium">Action</th>
           </tr>
         </thead>
         <tbody>
@@ -309,11 +306,11 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
                   {formatHours(worked)} / {formatHours(planned)} hrs
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
                       onClick={() => setPreview({ report: rep, client })}
-                      className={actionTextClass}
+                      className="cursor-pointer rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand/40"
                     >
                       View
                     </button>
@@ -323,7 +320,7 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
                         onClick={() =>
                           setReportToDelete({ reportId: rep.id, title: rep.title })
                         }
-                        className={actionTextClass}
+                        className="cursor-pointer rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 shadow-sm hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-300/50 dark:border-red-900 dark:bg-surface dark:text-red-300 dark:hover:bg-red-950/50"
                       >
                         Delete
                       </button>
