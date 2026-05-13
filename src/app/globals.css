@@ -23,9 +23,9 @@
   --color-surface: var(--surface);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  /* Primary brand — Digital Goliath */
-  --color-brand: #1433be;
-  --color-brand-hover: #102ca8;
+  /* Primary brand — Digital Goliath (landing / marketing blue) */
+  --color-brand: #0047ff;
+  --color-brand-hover: #0038d4;
   --color-brand-foreground: #ffffff;
   --color-brand-soft: #eef2fb;
   --color-brand-on-dark: #a4b4ff;

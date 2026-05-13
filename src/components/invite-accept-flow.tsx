@@ -184,7 +184,7 @@ export function InviteAcceptFlow() {
         <p className="font-medium">Invite link</p>
         <p className="mt-1 text-xs">{error ?? "Something went wrong."}</p>
         <p className="mt-2 text-xs text-red-800/90 dark:text-red-200/90">
-          You can close this tab and use <strong className="font-medium">Admin sign in</strong> below if you already set a password.
+          You can close this tab and use the <strong className="font-medium">sign-in form</strong> if you already set a password.
         </p>
       </div>
     );

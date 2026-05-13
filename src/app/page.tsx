@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
-import { InviteAcceptFlow } from "@/components/invite-accept-flow";
-import { LoginForm } from "@/components/login-form";
+import { LoggedOutHome } from "@/components/logged-out-home";
 import { isAuthConfigured } from "@/lib/config";
 import { getSessionUser } from "@/lib/supabase/server";
 
@@ -46,10 +45,5 @@ export default async function Home({ searchParams }: Props) {
   const user = await getSessionUser();
   if (user) redirect("/dashboard");
 
-  return (
-    <div className="flex min-h-full flex-col items-center justify-center bg-zinc-100 px-4 py-16 dark:bg-background">
-      <InviteAcceptFlow />
-      <LoginForm />
-    </div>
-  );
+  return <LoggedOutHome />;
 }

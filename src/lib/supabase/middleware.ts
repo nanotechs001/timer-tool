@@ -38,7 +38,7 @@ export async function updateSession(request: NextRequest) {
         );
       }
       const redirectUrl = request.nextUrl.clone();
-      redirectUrl.pathname = "/";
+      redirectUrl.pathname = "/login";
       redirectUrl.searchParams.set("error", "auth_config");
       return NextResponse.redirect(redirectUrl);
     }
@@ -75,9 +75,19 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/";
+    redirectUrl.pathname = "/login";
     redirectUrl.searchParams.set("next", path);
     return NextResponse.redirect(redirectUrl);
+  }
+
+  if (user && path === "/login") {
+    const next = request.nextUrl.searchParams.get("next");
+    const safe =
+      next &&
+      next.startsWith("/") &&
+      !next.startsWith("//") &&
+      !next.startsWith("/api/");
+    return NextResponse.redirect(new URL(safe ? next : "/dashboard", request.url));
   }
 
   if (user && path === "/") {

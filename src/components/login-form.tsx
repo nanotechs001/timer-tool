@@ -7,13 +7,23 @@ import { BrandLogo } from "@/components/brand-logo";
 import { InlineSpinner } from "@/components/inline-spinner";
 import { ThemeToggle } from "@/components/theme-toggle";
 
-export function LoginForm() {
+type LoginFormProps = {
+  /**
+   * `standalone` — full card with header (logo + theme) for /login.
+   * `embedded` — fields + button only; parent supplies the card shell.
+   */
+  variant?: "standalone" | "embedded";
+};
+
+const inputClass =
+  "h-11 w-full rounded-lg border border-zinc-200 bg-white px-3.5 text-[15px] text-zinc-900 shadow-sm outline-none transition placeholder:text-zinc-400 focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-brand-on-dark dark:focus:ring-brand-on-dark/25";
+
+export function LoginForm({ variant = "standalone" }: LoginFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** Shown after Supabase accepts credentials while Next.js navigates (can take several seconds). */
   const [loginSuccess, setLoginSuccess] = useState(false);
 
   useEffect(() => {
@@ -75,80 +85,98 @@ export function LoginForm() {
     }
   }
 
+  const fields = (
+    <>
+      {error ? (
+        <div
+          role="alert"
+          className="rounded-lg border border-red-200/80 bg-red-50 px-3.5 py-3 text-sm leading-snug text-red-900 dark:border-red-900/50 dark:bg-red-950/35 dark:text-red-100"
+        >
+          {error}
+        </div>
+      ) : null}
+      <div className="space-y-2">
+        <label htmlFor="login-email" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          Email
+        </label>
+        <input
+          id="login-email"
+          type="email"
+          autoComplete="email"
+          required
+          className={inputClass}
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@company.com"
+        />
+      </div>
+      <div className="space-y-2">
+        <label htmlFor="login-password" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          Password
+        </label>
+        <input
+          id="login-password"
+          type="password"
+          autoComplete="current-password"
+          required
+          className={inputClass}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="••••••••"
+        />
+      </div>
+      <button
+        type="submit"
+        disabled={busy}
+        className="mt-1 flex h-11 w-full items-center justify-center rounded-lg bg-brand text-sm font-semibold text-white shadow-md shadow-brand/25 transition hover:bg-brand-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:pointer-events-none disabled:opacity-50"
+      >
+        {busy ? "Signing in…" : "Sign in"}
+      </button>
+    </>
+  );
+
   return (
     <>
       {loginSuccess ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-white/90 p-6 backdrop-blur-sm dark:bg-zinc-950/90"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-50/95 p-6 backdrop-blur-sm dark:bg-zinc-950/95"
           role="status"
           aria-live="polite"
           aria-label="Signed in, loading app"
         >
-          <div className="flex max-w-sm flex-col items-center gap-5 rounded-2xl border border-zinc-200 bg-white px-10 py-12 text-center shadow-lg dark:border-zinc-800 dark:bg-surface">
+          <div className="flex max-w-sm flex-col items-center gap-5 rounded-2xl border border-zinc-200/80 bg-white px-10 py-12 text-center shadow-xl dark:border-zinc-700 dark:bg-surface">
             <InlineSpinner className="scale-[1.75]" />
             <div className="space-y-1">
-              <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-                Signed in successfully
-              </p>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                Loading your workspace… this can take a few seconds.
-              </p>
+              <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100">Signed in</p>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">Opening your workspace…</p>
             </div>
           </div>
         </div>
       ) : null}
-      <div className="flex w-full max-w-md flex-col items-center gap-6">
-        <div className="flex w-full items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 justify-center sm:justify-start">
-            <BrandLogo priority />
-          </div>
-          <ThemeToggle />
-        </div>
-        <form
-          onSubmit={onSubmit}
-          className="w-full space-y-4 rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-surface"
-        >
-          <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">Admin sign in</p>
-          {error ? (
-            <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800 dark:bg-red-950/50 dark:text-red-200">
-              {error}
-            </p>
-          ) : null}
-          <label className="block text-sm">
-            <span className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
-              Email
-            </span>
-            <input
-              type="email"
-              autoComplete="email"
-              required
-              className="w-full rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
-              Password
-            </span>
-            <input
-              type="password"
-              autoComplete="current-password"
-              required
-              className="w-full rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </label>
-          <button
-            type="submit"
-            disabled={busy}
-            className="w-full rounded-xl bg-brand py-2.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
-          >
-            {busy ? "Signing in…" : "Sign in"}
-          </button>
+
+      {variant === "embedded" ? (
+        <form onSubmit={onSubmit} className="w-full space-y-5">
+          {fields}
         </form>
-      </div>
+      ) : (
+        <div className="w-full max-w-[420px]">
+          <div className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/90 shadow-[0_24px_48px_-12px_rgba(15,23,42,0.12)] ring-1 ring-black/[0.03] backdrop-blur-sm dark:border-zinc-700/80 dark:bg-zinc-900/90 dark:shadow-black/40 dark:ring-white/[0.04]">
+            <div className="flex items-center justify-between gap-4 border-b border-zinc-100 bg-zinc-50/80 px-6 py-5 dark:border-zinc-800 dark:bg-zinc-800/40">
+              <BrandLogo priority />
+              <ThemeToggle />
+            </div>
+            <div className="px-6 pb-8 pt-6 sm:px-8">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                Team sign in
+              </p>
+              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Use your workspace credentials.</p>
+              <form onSubmit={onSubmit} className="mt-6 space-y-5">
+                {fields}
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
