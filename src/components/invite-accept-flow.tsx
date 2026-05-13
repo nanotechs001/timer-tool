@@ -30,9 +30,16 @@ function stripQueryKeys(keys: string[]) {
   window.history.replaceState(null, "", u.pathname + (q ? `?${q}` : ""));
 }
 
+function stripUrlHash() {
+  const path = window.location.pathname + (window.location.search || "");
+  window.history.replaceState(null, "", path);
+}
+
 /**
  * Email invite / magic link: Supabase often sends `?token_hash=…&type=invite` (verifyOtp),
- * or `#access_token=…&type=invite` (implicit). PKCE `?code=` is handled by `src/app/page.tsx`.
+ * or `#access_token=…&type=invite` (implicit). The SSR browser client defaults to PKCE and
+ * rejects implicit hash URLs, so we parse the fragment and call `setSession` ourselves.
+ * PKCE `?code=` is handled by `src/app/page.tsx`.
  */
 export function InviteAcceptFlow() {
   const router = useRouter();
@@ -58,10 +65,17 @@ export function InviteAcceptFlow() {
     }
 
     const rawHash = window.location.hash.slice(1);
-    if (!rawHash.includes("access_token")) return;
+    if (!rawHash) return;
+
+    const hp = new URLSearchParams(rawHash);
+    const hasImplicitTokens =
+      hp.has("access_token") && hp.has("refresh_token");
+    const hasHashOtp = hp.get("token_hash") && hp.get("type");
+
+    if (!hasImplicitTokens && !hasHashOtp && !hp.get("error")) return;
 
     started.current = true;
-    void runHashInvite(rawHash);
+    void runHashAuth(hp);
   }, [router]);
 
   async function runQueryOtp(token_hash: string, type: string) {
@@ -95,32 +109,74 @@ export function InviteAcceptFlow() {
     router.refresh();
   }
 
-  async function runHashInvite(rawHash: string) {
+  async function runHashAuth(hp: URLSearchParams) {
     const supabase = createSb();
     if (!supabase) return;
 
     setPhase("verifying");
     setError(null);
 
-    const hp = new URLSearchParams(rawHash);
     const hashType = (hp.get("type") ?? "").toLowerCase();
 
-    await Promise.resolve();
-    let session = (await supabase.auth.getSession()).data.session;
-    if (!session) {
-      await new Promise((r) => setTimeout(r, 150));
-      session = (await supabase.auth.getSession()).data.session;
+    const errParam = hp.get("error_description") || hp.get("error");
+    if (errParam) {
+      stripUrlHash();
+      setPhase("error");
+      try {
+        setError(decodeURIComponent(errParam.replace(/\+/g, " ")));
+      } catch {
+        setError(errParam);
+      }
+      return;
     }
 
-    window.history.replaceState(
-      null,
-      "",
-      window.location.pathname + (window.location.search ? window.location.search : "")
-    );
+    const th = hp.get("token_hash");
+    const thType = hp.get("type")?.toLowerCase();
+    if (th && thType) {
+      const { error: vErr } = await supabase.auth.verifyOtp({
+        token_hash: th,
+        type: thType as "invite" | "signup" | "recovery" | "magiclink" | "email_change",
+      });
+      stripUrlHash();
+      if (vErr) {
+        setPhase("error");
+        setError(vErr.message);
+        return;
+      }
+      const needsPassword =
+        thType === "invite" || thType === "recovery" || thType === "signup";
+      if (needsPassword) {
+        setPhase("need_password");
+        return;
+      }
+      router.replace("/dashboard");
+      router.refresh();
+      return;
+    }
 
-    if (!session) {
+    const access_token = hp.get("access_token");
+    const refresh_token = hp.get("refresh_token");
+    if (!access_token || !refresh_token) {
+      stripUrlHash();
       setPhase("error");
-      setError("Could not complete sign-in from this link. Try opening it again or ask for a new invite.");
+      setError(
+        "This invite link is missing tokens (it may be expired or already used). Ask for a new invite."
+      );
+      return;
+    }
+
+    const { data, error: sErr } = await supabase.auth.setSession({
+      access_token,
+      refresh_token,
+    });
+    stripUrlHash();
+
+    if (sErr || !data.session) {
+      setPhase("error");
+      setError(
+        sErr?.message ??
+          "Could not complete sign-in from this link. Try opening it again or ask for a new invite."
+      );
       return;
     }
 
@@ -184,7 +240,8 @@ export function InviteAcceptFlow() {
         <p className="font-medium">Invite link</p>
         <p className="mt-1 text-xs">{error ?? "Something went wrong."}</p>
         <p className="mt-2 text-xs text-red-800/90 dark:text-red-200/90">
-          You can close this tab and use the <strong className="font-medium">sign-in form</strong> if you already set a password.
+          You can close this tab and use the <strong className="font-medium">sign-in form</strong> if you
+          already set a password.
         </p>
       </div>
     );
@@ -208,7 +265,7 @@ export function InviteAcceptFlow() {
             Accept invite
           </p>
           <p className="text-center text-sm text-zinc-600 dark:text-zinc-400">
-            Choose a password for your account, then you&apos;ll go to the dashboard.
+            Set your password below. You&apos;ll be signed in and taken to the dashboard automatically.
           </p>
           {error ? (
             <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800 dark:bg-red-950/50 dark:text-red-200">
@@ -217,7 +274,7 @@ export function InviteAcceptFlow() {
           ) : null}
           <label className="block text-sm">
             <span className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
-              Password
+              Set password
             </span>
             <input
               type="password"
