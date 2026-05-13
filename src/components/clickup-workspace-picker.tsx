@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ClickUpList, ClickUpTask, ClickUpTeam } from "@/lib/clickup/client";
 import { InlineSpinner } from "@/components/inline-spinner";
+import { NoticeDialog } from "@/components/notice-dialog";
 import {
   CACHE_KEY_CLICKUP_TEAMS,
   cacheKeyLists,
@@ -73,6 +74,9 @@ export function ClickUpWorkspacePicker({
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [loadingTaskDetail, setLoadingTaskDetail] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [hoursNotice, setHoursNotice] = useState<{ title: string; description: string } | null>(
+    null
+  );
   /** Bumped with Sync to bypass cache and refetch. */
   const [dataRevision, setDataRevision] = useState(0);
   const initAppliedRef = useRef(false);
@@ -428,12 +432,18 @@ export function ClickUpWorkspacePicker({
     if (!onAddFromClickUp || !selectedTask) return;
     const t = importHoursStr.trim();
     if (t === "") {
-      window.alert("Enter hours for this task.");
+      setHoursNotice({
+        title: "Hours required",
+        description: "Enter hours for this task before adding it to the summary.",
+      });
       return;
     }
     const n = Number(t);
     if (!Number.isFinite(n) || n < 0) {
-      window.alert("Enter a valid hours number.");
+      setHoursNotice({
+        title: "Invalid hours",
+        description: "Enter a valid number (zero or greater) for hours.",
+      });
       return;
     }
     onAddFromClickUp(selectedTask.name, n);
@@ -442,6 +452,13 @@ export function ClickUpWorkspacePicker({
   }
 
   return (
+    <>
+    <NoticeDialog
+      open={hoursNotice !== null}
+      title={hoursNotice?.title ?? ""}
+      description={hoursNotice?.description ?? ""}
+      onOk={() => setHoursNotice(null)}
+    />
     <div className="space-y-2 rounded-xl border border-zinc-200 bg-zinc-50/80 p-3 text-xs dark:border-zinc-700 dark:bg-zinc-900/40">
       <div className="flex flex-wrap items-center gap-2">
         <p className="font-medium text-zinc-700 dark:text-zinc-200">ClickUp (read-only)</p>
@@ -615,5 +632,6 @@ export function ClickUpWorkspacePicker({
         </button>
       ) : null}
     </div>
+    </>
   );
 }

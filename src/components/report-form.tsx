@@ -8,11 +8,14 @@ import {
   isIsoDateOnlyString,
 } from "@/lib/format";
 import { useRouter } from "next/navigation";
+import { publicAppUrl } from "@/lib/config";
 import type { Client, LineItem, Report } from "@/lib/types";
 import { totalPlannedHours, totalWorkedHours } from "@/lib/types";
 import { nanoid } from "nanoid";
 import { ClickUpWorkspacePicker } from "@/components/clickup-workspace-picker";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { NoticeDialog } from "@/components/notice-dialog";
+import { ShareLinkCreatedDialog } from "@/components/share-link-created-dialog";
 
 type Props = {
   clients: Client[];
@@ -68,6 +71,13 @@ const MANUAL_INPUT_CLASS =
 const MANUAL_TEXTAREA_CLASS =
   "w-full resize-y rounded-lg border border-zinc-200 bg-white px-2.5 pb-2 pt-2.5 text-xs leading-snug outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-zinc-800 dark:bg-surface dark:text-zinc-100";
 
+function buildPublicReportUrl(slug: string): string {
+  const base = publicAppUrl();
+  if (base) return `${base}/r/${slug}`;
+  if (typeof window !== "undefined") return `${window.location.origin}/r/${slug}`;
+  return `/r/${slug}`;
+}
+
 export function ReportForm({ clients, mode, initial, canDelete = false }: Props) {
   const router = useRouter();
   const [title, setTitle] = useState(initial?.title ?? "");
@@ -105,6 +115,17 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [notice, setNotice] = useState<{
+    title: string;
+    description: string;
+    /** Runs when user clicks OK, before dialog closes */
+    onOk?: () => void;
+  } | null>(null);
+  const [createdShare, setCreatedShare] = useState<{
+    id: string;
+    title: string;
+    publicUrl: string;
+  } | null>(null);
   const [manualPanelOpen, setManualPanelOpen] = useState(false);
   const [clickUpPanelOpen, setClickUpPanelOpen] = useState(false);
   const [manualDraft, setManualDraft] = useState({
@@ -148,38 +169,57 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
     return n;
   }
 
-  function addManualDraftToLineItems() {
-    const task = manualDraft.task.trim();
-    if (!task) return;
-    let total = parseHoursField(manualDraft.hoursTotalStr);
-    let worked = parseHoursField(manualDraft.hoursWorkedStr);
-    if (total === null && worked === null) {
-      window.alert("Enter total hours or hours worked (or both).");
-      return;
-    }
-    if (total === null && worked !== null) {
-      window.alert(
-        "Total hours wasn’t set. We’ll use your hours worked for both planned total and worked time."
-      );
-      total = worked;
-    }
-    if (worked === null && total !== null) {
-      worked = total;
-    }
-    if (total === null || worked === null) return;
-    if (worked > total) worked = total;
+  function appendManualLine(task: string, total: number, worked: number, notesTrim: string | undefined) {
+    let w = worked;
+    if (w > total) w = total;
     setLineItems((rows) => [
       ...rows,
       {
         id: nanoid(8),
         task,
         hours: total,
-        hoursWorked: worked,
+        hoursWorked: w,
         rate: 0,
-        notes: manualDraft.notes.trim() || undefined,
+        notes: notesTrim,
       },
     ]);
     setManualDraft({ task: "", hoursWorkedStr: "", hoursTotalStr: "", notes: "" });
+  }
+
+  function addManualDraftToLineItems() {
+    const task = manualDraft.task.trim();
+    if (!task) return;
+    let total = parseHoursField(manualDraft.hoursTotalStr);
+    let worked = parseHoursField(manualDraft.hoursWorkedStr);
+    const notesTrim = manualDraft.notes.trim() || undefined;
+    if (total === null && worked === null) {
+      setNotice({
+        title: "Hours required",
+        description: "Enter total hours or hours worked (or both) before adding this task to the list.",
+      });
+      return;
+    }
+    if (total === null && worked !== null) {
+      const w = worked;
+      setNotice({
+        title: "Total hours not set",
+        description:
+          "You entered hours worked but left total hours empty. We’ll use that same value for both planned total and worked time.",
+        onOk: () => appendManualLine(task, w, w, notesTrim),
+      });
+      return;
+    }
+    if (worked === null && total !== null) {
+      worked = total;
+    }
+    if (total === null || worked === null) return;
+    appendManualLine(task, total, worked, notesTrim);
+  }
+
+  function handleNoticeOk() {
+    const cb = notice?.onOk;
+    if (cb) cb();
+    setNotice(null);
   }
 
   function removeLine(id: string) {
@@ -239,10 +279,15 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
           );
         }
         const newId = data.id;
-        if (typeof newId !== "string" || !newId) {
+        const slug = typeof data.slug === "string" ? data.slug : "";
+        if (typeof newId !== "string" || !newId || !slug) {
           throw new Error("Save failed");
         }
-        router.push(`/reports/${newId}`);
+        setCreatedShare({
+          id: newId,
+          title: title.trim() || "Summary",
+          publicUrl: buildPublicReportUrl(slug),
+        });
         router.refresh();
       } else if (initial) {
         const res = await fetch(`/api/reports/${initial.id}`, {
@@ -287,8 +332,22 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
     }
   }
 
+  function closeCreatedShareAndEdit() {
+    if (!createdShare) return;
+    const id = createdShare.id;
+    setCreatedShare(null);
+    router.push(`/reports/${id}`);
+    router.refresh();
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-8 px-4 py-8">
+      <ShareLinkCreatedDialog
+        open={createdShare !== null}
+        reportTitle={createdShare?.title ?? ""}
+        publicUrl={createdShare?.publicUrl ?? ""}
+        onClose={closeCreatedShareAndEdit}
+      />
       <ConfirmDialog
         open={deleteDialogOpen}
         title="Delete this work summary?"
@@ -299,6 +358,12 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
         busy={busy}
         onCancel={() => !busy && setDeleteDialogOpen(false)}
         onConfirm={() => void executeDeleteReport()}
+      />
+      <NoticeDialog
+        open={notice !== null}
+        title={notice?.title ?? ""}
+        description={notice?.description ?? ""}
+        onOk={handleNoticeOk}
       />
 
       {error ? (

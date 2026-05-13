@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 export type TeamUserRow = {
   id: string;
@@ -23,6 +24,8 @@ export function TeamSettingsPanel({ currentUserId }: Props) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [userToRemove, setUserToRemove] = useState<{ id: string; label: string } | null>(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -87,22 +90,44 @@ export function TeamSettingsPanel({ currentUserId }: Props) {
     await load();
   }
 
-  async function removeUser(userId: string) {
-    if (!window.confirm("Remove this user? They will lose access immediately.")) return;
+  async function executeRemoveUser() {
+    if (!userToRemove) return;
+    const userId = userToRemove.id;
+    setRemoveBusy(true);
     setError(null);
     setMessage(null);
-    const res = await fetch(`/api/admin/users/${userId}`, { method: "DELETE" });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setError(typeof data.error === "string" ? data.error : "Could not remove user");
-      return;
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(typeof data.error === "string" ? data.error : "Could not remove user");
+        return;
+      }
+      setUserToRemove(null);
+      setMessage("User removed.");
+      await load();
+    } finally {
+      setRemoveBusy(false);
     }
-    setMessage("User removed.");
-    await load();
   }
 
   return (
     <div className="space-y-8">
+      <ConfirmDialog
+        open={userToRemove !== null}
+        title="Remove user?"
+        description={
+          userToRemove
+            ? `${userToRemove.label} will lose access immediately and won’t be able to sign in. This cannot be undone.`
+            : ""
+        }
+        confirmLabel="Remove user"
+        cancelLabel="Cancel"
+        variant="danger"
+        busy={removeBusy}
+        onCancel={() => !removeBusy && setUserToRemove(null)}
+        onConfirm={() => void executeRemoveUser()}
+      />
       <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-surface">
         <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
           Invite teammate
@@ -223,8 +248,13 @@ export function TeamSettingsPanel({ currentUserId }: Props) {
                         <button
                           type="button"
                           disabled={u.id === currentUserId}
-                          onClick={() => void removeUser(u.id)}
-                          className="text-xs font-medium text-red-600 hover:underline disabled:cursor-not-allowed disabled:opacity-40 dark:text-red-400"
+                          onClick={() =>
+                            setUserToRemove({
+                              id: u.id,
+                              label: u.email?.trim() || u.fullName?.trim() || "This user",
+                            })
+                          }
+                          className="cursor-pointer text-xs font-medium text-red-600 hover:underline disabled:cursor-not-allowed disabled:opacity-40 dark:text-red-400"
                         >
                           Remove
                         </button>

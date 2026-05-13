@@ -15,6 +15,7 @@ import type { Client, Report } from "@/lib/types";
 import { totalPlannedHours, totalWorkedHours } from "@/lib/types";
 import { formatHours, formatSummaryCreatedAt } from "@/lib/format";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { NoticeDialog } from "@/components/notice-dialog";
 import { ReportPreviewDialog } from "@/components/report-preview-dialog";
 
 function toAbsoluteShareUrl(shareDisplay: string): string {
@@ -155,6 +156,7 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
   const [folderDeleteBusy, setFolderDeleteBusy] = useState(false);
   const [reportToDelete, setReportToDelete] = useState<ReportDeleteTarget | null>(null);
   const [reportDeleteBusy, setReportDeleteBusy] = useState(false);
+  const [actionErrorNotice, setActionErrorNotice] = useState<string | null>(null);
 
   const filteredRows = useMemo(
     () => filterRows(rows, search, dateFrom, dateTo),
@@ -254,7 +256,7 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
       router.refresh();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Delete failed";
-      window.alert(msg);
+      setActionErrorNotice(msg);
     } finally {
       setFolderDeleteBusy(false);
     }
@@ -278,7 +280,7 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
       router.refresh();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Delete failed";
-      window.alert(msg);
+      setActionErrorNotice(msg);
     } finally {
       setReportDeleteBusy(false);
     }
@@ -452,6 +454,14 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
 
   return (
     <>
+      <NoticeDialog
+        open={actionErrorNotice !== null}
+        title="Something went wrong"
+        description={actionErrorNotice ?? ""}
+        okLabel="OK"
+        variant="danger"
+        onOk={() => setActionErrorNotice(null)}
+      />
       <ConfirmDialog
         open={reportToDelete !== null}
         title="Delete summary?"

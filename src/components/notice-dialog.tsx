@@ -2,18 +2,32 @@
 
 import { useEffect } from "react";
 
+const panelClass =
+  "relative z-[101] w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-700 dark:bg-surface";
+
 type Props = {
   open: boolean;
   title: string;
   description: string;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  /** danger = red confirm button */
-  variant?: "danger" | "default";
-  busy?: boolean;
-  onConfirm: () => void;
-  onCancel: () => void;
+  okLabel?: string;
+  /** `danger` uses the same red accent as delete confirmations */
+  variant?: "info" | "danger";
+  onOk: () => void;
 };
+
+function InfoIcon(props: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
+      <path
+        d="M12 16v-4M12 8h.01M22 12c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2s10 4.477 10 10Z"
+        stroke="currentColor"
+        strokeWidth={1.75}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 function WarningIcon(props: { className?: string }) {
   return (
@@ -29,30 +43,13 @@ function WarningIcon(props: { className?: string }) {
   );
 }
 
-function QuestionIcon(props: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
-      <path
-        d="M9.09 9a3 3 0 1 1 5.83 1c0 2-3 2-3 4M12 17h.01"
-        stroke="currentColor"
-        strokeWidth={1.75}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-export function ConfirmDialog({
+export function NoticeDialog({
   open,
   title,
   description,
-  confirmLabel = "Confirm",
-  cancelLabel = "Cancel",
-  variant = "default",
-  busy = false,
-  onConfirm,
-  onCancel,
+  okLabel = "OK",
+  variant = "info",
+  onOk,
 }: Props) {
   useEffect(() => {
     if (!open) return;
@@ -65,39 +62,38 @@ export function ConfirmDialog({
 
   if (!open) return null;
 
-  const iconWrap =
-    variant === "danger"
-      ? "bg-red-100 text-red-600 dark:bg-red-950/55 dark:text-red-300"
-      : "bg-brand-soft text-brand dark:bg-brand/20 dark:text-brand-on-dark";
-
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <button
         type="button"
         className="absolute inset-0 cursor-pointer bg-black/50 backdrop-blur-[1px]"
         aria-label="Close dialog"
-        onClick={() => !busy && onCancel()}
+        onClick={onOk}
       />
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="confirm-dialog-title"
-        className="relative z-[101] w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-700 dark:bg-surface"
+        aria-labelledby="notice-dialog-title"
+        className={panelClass}
       >
         <div className="flex gap-4">
           <div
-            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${iconWrap}`}
+            className={
+              variant === "danger"
+                ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-600 dark:bg-red-950/55 dark:text-red-300"
+                : "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand dark:bg-brand/20 dark:text-brand-on-dark"
+            }
             aria-hidden
           >
             {variant === "danger" ? (
               <WarningIcon className="h-6 w-6" />
             ) : (
-              <QuestionIcon className="h-6 w-6" />
+              <InfoIcon className="h-6 w-6" />
             )}
           </div>
           <div className="min-w-0 flex-1">
             <h2
-              id="confirm-dialog-title"
+              id="notice-dialog-title"
               className="text-lg font-semibold text-zinc-900 dark:text-zinc-50"
             >
               {title}
@@ -110,23 +106,14 @@ export function ConfirmDialog({
         <div className="mt-6 flex flex-wrap justify-end gap-2">
           <button
             type="button"
-            disabled={busy}
-            onClick={onCancel}
-            className="cursor-pointer rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-900"
-          >
-            {cancelLabel}
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onConfirm}
+            onClick={onOk}
             className={
               variant === "danger"
-                ? "cursor-pointer rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
-                : "cursor-pointer rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+                ? "cursor-pointer rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500"
+                : "cursor-pointer rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
             }
           >
-            {busy ? "Please wait…" : confirmLabel}
+            {okLabel}
           </button>
         </div>
       </div>
