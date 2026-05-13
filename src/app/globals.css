@@ -36,3 +36,20 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
+
+/* Clear affordance on controls (links, buttons, theme, menus); text fields stay I-beam */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+a[href],
+summary,
+select {
+  cursor: pointer;
+}
+input[type="checkbox"],
+input[type="radio"] {
+  cursor: pointer;
+}
+input:not([type="checkbox"]):not([type="radio"]),
+textarea {
+  cursor: text;
+}

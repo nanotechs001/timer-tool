@@ -133,6 +133,7 @@ export async function listClients(): Promise<Client[]> {
   const first = await sb
     .from("clients")
     .select(CLIENT_COLUMNS)
+    .order("company", { ascending: true })
     .order("name", { ascending: true });
   if (first.error) {
     if (!isMissingClickupColumnsError(first.error.message)) {
@@ -141,6 +142,7 @@ export async function listClients(): Promise<Client[]> {
     const legacy = await sb
       .from("clients")
       .select(LEGACY_CLIENT_COLUMNS)
+      .order("company", { ascending: true })
       .order("name", { ascending: true });
     if (legacy.error) throw new Error(legacy.error.message);
     return (legacy.data ?? []).map(mapClientRow);

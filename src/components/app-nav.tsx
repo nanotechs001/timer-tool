@@ -21,7 +21,7 @@ export function AppNav({ userEmail, isAdmin = false }: Props) {
       <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-3 sm:flex-nowrap">
         <Link
           href="/dashboard"
-          className="flex shrink-0 items-center rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+          className="flex shrink-0 cursor-pointer items-center rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
         >
           <BrandLogo priority />
         </Link>
@@ -29,7 +29,7 @@ export function AppNav({ userEmail, isAdmin = false }: Props) {
           <div className="group relative">
             <Link
               href="/dashboard"
-              className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
+              className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-3 py-1.5 text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
             >
               Summary
               <svg
@@ -47,13 +47,13 @@ export function AppNav({ userEmail, isAdmin = false }: Props) {
               <div className="rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
                 <Link
                   href="/dashboard"
-                  className="block px-3 py-2 text-sm text-zinc-800 hover:bg-zinc-50 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                  className="block cursor-pointer px-3 py-2 text-sm text-zinc-800 hover:bg-zinc-50 dark:text-zinc-100 dark:hover:bg-zinc-800"
                 >
                   View All
                 </Link>
                 <Link
                   href="/reports/new"
-                  className="block px-3 py-2 text-sm text-zinc-800 hover:bg-zinc-50 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                  className="block cursor-pointer px-3 py-2 text-sm text-zinc-800 hover:bg-zinc-50 dark:text-zinc-100 dark:hover:bg-zinc-800"
                 >
                   Add New
                 </Link>
@@ -64,7 +64,7 @@ export function AppNav({ userEmail, isAdmin = false }: Props) {
             <Link
               key={l.href}
               href={l.href}
-              className="rounded-lg px-3 py-1.5 text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
+              className="cursor-pointer rounded-lg px-3 py-1.5 text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
             >
               {l.label}
             </Link>

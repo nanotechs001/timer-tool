@@ -29,7 +29,7 @@ export function UserAccountMenu({ userEmail, isAdmin = false }: Props) {
     <div className="group relative inline-block text-left">
       <button
         type="button"
-        className="flex max-w-[14rem] items-center gap-1 rounded-lg px-2 py-1.5 text-left text-xs text-zinc-700 transition hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-900"
+        className="flex max-w-[14rem] cursor-pointer items-center gap-1 rounded-lg px-2 py-1.5 text-left text-xs text-zinc-700 transition hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-900"
         aria-haspopup="true"
         aria-expanded={undefined}
       >
@@ -55,7 +55,7 @@ export function UserAccountMenu({ userEmail, isAdmin = false }: Props) {
             <Link
               href="/settings/team"
               role="menuitem"
-              className="block px-3 py-2 text-sm text-zinc-800 hover:bg-zinc-50 dark:text-zinc-100 dark:hover:bg-zinc-800"
+              className="block cursor-pointer px-3 py-2 text-sm text-zinc-800 hover:bg-zinc-50 dark:text-zinc-100 dark:hover:bg-zinc-800"
             >
               Team
             </Link>
@@ -63,7 +63,7 @@ export function UserAccountMenu({ userEmail, isAdmin = false }: Props) {
           <button
             type="button"
             role="menuitem"
-            className="w-full px-3 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-50 dark:text-zinc-100 dark:hover:bg-zinc-800"
+            className="w-full cursor-pointer px-3 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-50 dark:text-zinc-100 dark:hover:bg-zinc-800"
             onClick={() => void signOut()}
           >
             Sign out

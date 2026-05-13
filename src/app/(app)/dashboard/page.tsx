@@ -44,7 +44,7 @@ export default async function DashboardPage() {
         </div>
         <Link
           href="/reports/new"
-          className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-foreground shadow-sm hover:bg-brand-hover"
+          className="cursor-pointer rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-foreground shadow-sm hover:bg-brand-hover"
         >
           New summary
         </Link>

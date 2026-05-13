@@ -32,10 +32,12 @@ export async function POST(req: Request) {
     return jsonValidation(parsed.error.flatten());
   }
   try {
+    const company = parsed.data.company.trim();
+    const name = (parsed.data.name?.trim() || "") || company;
     const client = await createClient({
-      name: parsed.data.name,
+      name,
       email: parsed.data.email ?? "",
-      company: parsed.data.company ?? "",
+      company,
       notes: parsed.data.notes ?? "",
       clickupTeamId: parsed.data.clickupTeamId,
       clickupSpaceId: parsed.data.clickupSpaceId,

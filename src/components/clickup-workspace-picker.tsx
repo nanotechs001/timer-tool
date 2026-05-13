@@ -66,7 +66,7 @@ export function ClickUpWorkspacePicker({
   const [listId, setListId] = useState("");
   const [tasks, setTasks] = useState<ClickUpTask[]>([]);
   const [taskId, setTaskId] = useState("");
-  const [importHours, setImportHours] = useState<number>(0);
+  const [importHoursStr, setImportHoursStr] = useState("");
   const [loadingTeams, setLoadingTeams] = useState(false);
   const [loadingFolderOptions, setLoadingFolderOptions] = useState(false);
   const [loadingLists, setLoadingLists] = useState(false);
@@ -120,7 +120,7 @@ export function ClickUpWorkspacePicker({
       setListId("");
       setTasks([]);
       setTaskId("");
-      setImportHours(0);
+      setImportHoursStr("");
       initAppliedRef.current = false;
       return;
     }
@@ -306,7 +306,7 @@ export function ClickUpWorkspacePicker({
       setListId("");
       setTasks([]);
       setTaskId("");
-      setImportHours(0);
+      setImportHoursStr("");
     }
   }, [lists, listId]);
 
@@ -314,14 +314,14 @@ export function ClickUpWorkspacePicker({
     if (prevListIdRef.current === listId) return;
     prevListIdRef.current = listId;
     setTaskId("");
-    setImportHours(0);
+    setImportHoursStr("");
   }, [listId]);
 
   useEffect(() => {
     if (!showImport || !listId || !status?.connected) {
       setTasks([]);
       setTaskId("");
-      setImportHours(0);
+      setImportHoursStr("");
       return;
     }
     const ac = new AbortController();
@@ -362,7 +362,7 @@ export function ClickUpWorkspacePicker({
 
   useEffect(() => {
     if (!showImport || !taskId || !status?.connected) {
-      setImportHours(0);
+      setImportHoursStr("");
       return;
     }
     const ac = new AbortController();
@@ -378,7 +378,10 @@ export function ClickUpWorkspacePicker({
           Number.isFinite(cached.hoursFromClickUp)
         ) {
           if (cancelled) return;
-          setImportHours(cached.hoursFromClickUp);
+          const ch = cached.hoursFromClickUp;
+          setImportHoursStr(
+            typeof ch === "number" && Number.isFinite(ch) && ch > 0 ? String(ch) : ""
+          );
           return;
         }
         setLoadingTaskDetail(true);
@@ -391,12 +394,12 @@ export function ClickUpWorkspacePicker({
         if (cancelled) return;
         const h = Number(data.hoursFromClickUp);
         const hours = Number.isFinite(h) ? h : 0;
-        setImportHours(hours);
+        setImportHoursStr(hours > 0 ? String(hours) : "");
         writeClickUpCache(cacheKey, { hoursFromClickUp: hours });
       } catch (e) {
         if (e instanceof Error && e.name === "AbortError") return;
         if (!cancelled) setErr(e instanceof Error ? e.message : "Error");
-        if (!cancelled) setImportHours(0);
+        if (!cancelled) setImportHoursStr("");
       } finally {
         if (!cancelled) setLoadingTaskDetail(false);
       }
@@ -423,9 +426,19 @@ export function ClickUpWorkspacePicker({
 
   function applyRow() {
     if (!onAddFromClickUp || !selectedTask) return;
-    onAddFromClickUp(selectedTask.name, importHours);
+    const t = importHoursStr.trim();
+    if (t === "") {
+      window.alert("Enter hours for this task.");
+      return;
+    }
+    const n = Number(t);
+    if (!Number.isFinite(n) || n < 0) {
+      window.alert("Enter a valid hours number.");
+      return;
+    }
+    onAddFromClickUp(selectedTask.name, n);
     setTaskId("");
-    setImportHours(0);
+    setImportHoursStr("");
   }
 
   return (
@@ -436,7 +449,7 @@ export function ClickUpWorkspacePicker({
           type="button"
           onClick={handleSyncClickUp}
           disabled={anyLoading}
-          className="rounded-lg border border-zinc-200 bg-white px-2 py-0.5 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+          className="cursor-pointer rounded-lg border border-zinc-200 bg-white px-2 py-0.5 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
         >
           Sync
         </button>
@@ -577,11 +590,11 @@ export function ClickUpWorkspacePicker({
               </span>
               <input
                 type="number"
-                min={0}
-                step={0.25}
-                className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs dark:border-zinc-700 dark:bg-surface"
-                value={importHours}
-                onChange={(e) => setImportHours(Number(e.target.value) || 0)}
+                inputMode="decimal"
+                placeholder="0"
+                className="w-full cursor-text rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs [appearance:textfield] dark:border-zinc-700 dark:bg-surface [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                value={importHoursStr}
+                onChange={(e) => setImportHoursStr(e.target.value)}
                 disabled={!taskId || loadingTaskDetail}
               />
               <p className="mt-1 text-[10px] text-zinc-500">
@@ -596,7 +609,7 @@ export function ClickUpWorkspacePicker({
           type="button"
           disabled={loadingTaskDetail}
           onClick={applyRow}
-          className="rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+          className="cursor-pointer rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-50"
         >
           Add row from this task
         </button>

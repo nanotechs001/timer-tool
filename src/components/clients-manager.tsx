@@ -9,6 +9,16 @@ import {
 } from "@/components/clickup-list-search-button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 
+function sortClients(list: Client[]) {
+  return [...list].sort((a, b) => {
+    const ca = (a.company || "").localeCompare(b.company || "", undefined, {
+      sensitivity: "base",
+    });
+    if (ca !== 0) return ca;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+  });
+}
+
 type Props = { initialClients: Client[]; isAdmin?: boolean };
 
 export function ClientsManager({ initialClients, isAdmin = false }: Props) {
@@ -51,11 +61,15 @@ export function ClientsManager({ initialClients, isAdmin = false }: Props) {
   async function saveEdit(e: FormEvent) {
     e.preventDefault();
     if (!editingId) return;
+    if (!editCompany.trim()) {
+      setError("Company is required.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       const body: Record<string, string | undefined> = {
-        name: editName.trim(),
+        name: editName.trim() || editCompany.trim(),
         email: editEmail.trim(),
         company: editCompany.trim(),
         notes: editNotes.trim(),
@@ -73,9 +87,7 @@ export function ClientsManager({ initialClients, isAdmin = false }: Props) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? "Failed to save client");
-      setClients((list) =>
-        list.map((x) => (x.id === editingId ? (data as Client) : x)).sort((a, b) => a.name.localeCompare(b.name))
-      );
+      setClients((list) => sortClients(list.map((x) => (x.id === editingId ? (data as Client) : x))));
       closeEdit();
       router.refresh();
     } catch (err) {
@@ -88,15 +100,19 @@ export function ClientsManager({ initialClients, isAdmin = false }: Props) {
   async function addClient(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!company.trim()) {
+      setError("Company is required.");
+      return;
+    }
     setBusy(true);
     try {
       const res = await fetch("/api/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name,
-          email,
-          company,
+          name: name.trim() || undefined,
+          email: email.trim() || undefined,
+          company: company.trim(),
           clickupTeamId: clickupPick?.teamId || undefined,
           clickupSpaceId: clickupPick?.spaceId || undefined,
           clickupFolderId: clickupPick?.folderId || undefined,
@@ -105,7 +121,7 @@ export function ClientsManager({ initialClients, isAdmin = false }: Props) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? "Failed to add client");
-      setClients((c) => [...c, data].sort((a, b) => a.name.localeCompare(b.name)));
+      setClients((c) => sortClients([...c, data]));
       setName("");
       setEmail("");
       setCompany("");
@@ -140,6 +156,15 @@ export function ClientsManager({ initialClients, isAdmin = false }: Props) {
     }
   }
 
+  const btnPrimary =
+    "cursor-pointer rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50";
+  const btnGhost =
+    "cursor-pointer rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900";
+  const btnText =
+    "cursor-pointer text-xs font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100";
+  const btnDanger =
+    "cursor-pointer text-xs font-medium text-red-600 hover:underline dark:text-red-400";
+
   return (
     <div className="mx-auto max-w-3xl space-y-10 px-4 py-8">
       <ConfirmDialog
@@ -164,53 +189,49 @@ export function ClientsManager({ initialClients, isAdmin = false }: Props) {
         onSubmit={addClient}
         className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-surface"
       >
-        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-          New client
-        </h2>
+        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">New client</h2>
         <div className="mt-4 space-y-4">
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Name
+              Company <span className="text-red-600 dark:text-red-400">*</span>
             </span>
             <input
               required
               className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm dark:border-zinc-800 dark:bg-zinc-900"
-              placeholder="Contact or client name (manual)"
+              placeholder="Company name"
+              value={company}
+              onChange={(e) => {
+                setCompany(e.target.value);
+                setClickupPick(null);
+              }}
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              Contact name <span className="font-normal text-zinc-400">(optional)</span>
+            </span>
+            <input
+              className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm dark:border-zinc-800 dark:bg-zinc-900"
+              placeholder="e.g. Account lead"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
           </label>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                Email
-              </span>
-              <input
-                type="email"
-                className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm dark:border-zinc-800 dark:bg-zinc-900"
-                placeholder="Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                Company
-              </span>
-              <input
-                className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm dark:border-zinc-800 dark:bg-zinc-900"
-                placeholder="Company (manual or from ClickUp below)"
-                value={company}
-                onChange={(e) => {
-                  setCompany(e.target.value);
-                  setClickupPick(null);
-                }}
-              />
-            </label>
-          </div>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              Email <span className="font-normal text-zinc-400">(optional)</span>
+            </span>
+            <input
+              type="email"
+              className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm dark:border-zinc-800 dark:bg-zinc-900"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </label>
           <div>
             <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Set company from ClickUp
+              Set company from ClickUp <span className="font-normal text-zinc-400">(optional)</span>
             </span>
             <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
               Picks a folder or list and fills <strong className="font-medium">Company</strong> with that
@@ -224,11 +245,7 @@ export function ClientsManager({ initialClients, isAdmin = false }: Props) {
             />
           </div>
         </div>
-        <button
-          type="submit"
-          disabled={busy}
-          className="mt-6 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
-        >
+        <button type="submit" disabled={busy} className={`mt-6 ${btnPrimary}`}>
           {busy ? "Saving…" : "Add client"}
         </button>
       </form>
@@ -243,56 +260,69 @@ export function ClientsManager({ initialClients, isAdmin = false }: Props) {
               No clients yet. Add one above.
             </li>
           ) : (
-            clients.map((c) => (
-              <li key={c.id} className="px-4 py-3 text-sm">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="font-medium text-zinc-900 dark:text-zinc-100">{c.name}</p>
-                    <p className="text-xs text-zinc-500">
-                      {[c.company, c.email].filter(Boolean).join(" · ") || "—"}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => (editingId === c.id ? closeEdit() : openEdit(c))}
-                      className="text-xs font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
-                    >
-                      {editingId === c.id ? "Cancel" : "Edit"}
-                    </button>
-                    {isAdmin ? (
+            clients.map((c) => {
+              const primary = c.company?.trim() || c.name;
+              const secondary = [c.name !== primary ? c.name : null, c.email].filter(Boolean).join(" · ");
+              return (
+                <li key={c.id} className="px-4 py-3 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-zinc-900 dark:text-zinc-100">{primary}</p>
+                      <p className="text-xs text-zinc-500">{secondary || "—"}</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
                       <button
                         type="button"
                         disabled={busy}
-                        onClick={() => setRemoveId(c.id)}
-                        className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+                        onClick={() => (editingId === c.id ? closeEdit() : openEdit(c))}
+                        className={btnText}
                       >
-                        Delete
+                        {editingId === c.id ? "Cancel" : "Edit"}
                       </button>
-                    ) : null}
+                      {isAdmin ? (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => setRemoveId(c.id)}
+                          className={btnDanger}
+                        >
+                          Delete
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-                {editingId === c.id ? (
-                  <form
-                    onSubmit={saveEdit}
-                    className="mt-4 space-y-4 border-t border-zinc-100 pt-4 dark:border-zinc-800"
-                  >
-                    <label className="block">
-                      <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                        Name
-                      </span>
-                      <input
-                        required
-                        className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm dark:border-zinc-800 dark:bg-zinc-900"
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                      />
-                    </label>
-                    <div className="grid gap-3 sm:grid-cols-2">
+                  {editingId === c.id ? (
+                    <form
+                      onSubmit={saveEdit}
+                      className="mt-4 space-y-4 border-t border-zinc-100 pt-4 dark:border-zinc-800"
+                    >
                       <label className="block">
                         <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                          Email
+                          Company <span className="text-red-600 dark:text-red-400">*</span>
+                        </span>
+                        <input
+                          required
+                          className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm dark:border-zinc-800 dark:bg-zinc-900"
+                          value={editCompany}
+                          onChange={(e) => {
+                            setEditCompany(e.target.value);
+                            setEditClickupPick(null);
+                          }}
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                          Contact name <span className="font-normal text-zinc-400">(optional)</span>
+                        </span>
+                        <input
+                          className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm dark:border-zinc-800 dark:bg-zinc-900"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                          Email <span className="font-normal text-zinc-400">(optional)</span>
                         </span>
                         <input
                           type="email"
@@ -303,65 +333,48 @@ export function ClientsManager({ initialClients, isAdmin = false }: Props) {
                       </label>
                       <label className="block">
                         <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                          Company
+                          Notes <span className="font-normal text-zinc-400">(optional)</span>
                         </span>
-                        <input
+                        <textarea
+                          rows={2}
                           className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm dark:border-zinc-800 dark:bg-zinc-900"
-                          value={editCompany}
-                          onChange={(e) => {
-                            setEditCompany(e.target.value);
-                            setEditClickupPick(null);
-                          }}
+                          value={editNotes}
+                          onChange={(e) => setEditNotes(e.target.value)}
                         />
                       </label>
-                    </div>
-                    <label className="block">
-                      <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                        Notes
-                      </span>
-                      <textarea
-                        rows={2}
-                        className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm dark:border-zinc-800 dark:bg-zinc-900"
-                        value={editNotes}
-                        onChange={(e) => setEditNotes(e.target.value)}
-                      />
-                    </label>
-                    <div>
-                      <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                        Update ClickUp link (optional)
-                      </span>
-                      <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
-                        Pick a folder or list to refresh company name and saved ClickUp path. Leave
-                        untouched to keep the current link.
-                      </p>
-                      <ClickUpChannelSearchButton
-                        onPick={(p) => {
-                          setEditCompany(p.clientName);
-                          setEditClickupPick(p);
-                        }}
-                      />
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="submit"
-                        disabled={busy}
-                        className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
-                      >
-                        {busy ? "Saving…" : "Save changes"}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => closeEdit()}
-                        className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
-                ) : null}
-              </li>
-            ))
+                      <div>
+                        <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                          Update ClickUp link (optional)
+                        </span>
+                        <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
+                          Pick a folder or list to refresh company name and saved ClickUp path. Leave
+                          untouched to keep the current link.
+                        </p>
+                        <ClickUpChannelSearchButton
+                          onPick={(p) => {
+                            setEditCompany(p.clientName);
+                            setEditClickupPick(p);
+                          }}
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button type="submit" disabled={busy} className={btnPrimary}>
+                          {busy ? "Saving…" : "Save changes"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => closeEdit()}
+                          className={btnGhost}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  ) : null}
+                </li>
+              );
+            })
           )}
         </ul>
       </div>

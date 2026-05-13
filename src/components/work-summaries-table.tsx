@@ -53,10 +53,17 @@ function groupByClient(rows: SummaryRow[]): ClientGroup[] {
         new Date(a.report.createdAt || 0).getTime()
     );
     const firstClient = list[0]?.client ?? null;
+    const company = firstClient?.company?.trim() ?? "";
+    const contactName = firstClient?.name?.trim() ?? "";
+    const primary = firstClient
+      ? company || contactName || "Unnamed"
+      : "No client";
+    const subtitle =
+      firstClient && contactName && contactName !== primary ? contactName : null;
     groups.push({
       key,
-      label: firstClient ? firstClient.name : "No client",
-      subtitle: firstClient?.company?.trim() ? firstClient.company : null,
+      label: primary,
+      subtitle,
       rows: sorted,
     });
   }
@@ -280,9 +287,9 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
   const hasActiveFilters = Boolean(search.trim() || dateFrom.trim() || dateTo.trim());
 
   const linkClass =
-    "font-medium text-[#1433be] underline-offset-2 hover:underline dark:text-[#a4b4ff]";
+    "cursor-pointer font-medium text-[#1433be] underline-offset-2 hover:underline dark:text-[#a4b4ff]";
   const actionTextClass =
-    "text-xs font-medium text-zinc-500 transition hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200";
+    "cursor-pointer text-xs font-medium text-zinc-500 transition hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200";
 
   const openFolder = (key: string) => {
     setOpenClientKey(key);
@@ -305,8 +312,8 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Client, company, or task…"
-            className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/30 dark:border-zinc-600 dark:bg-surface"
+            placeholder="Company, contact, or task…"
+              className="w-full cursor-text rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/30 dark:border-zinc-600 dark:bg-surface"
           />
         </label>
         <label className="block">
@@ -317,7 +324,7 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
-            className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/30 dark:border-zinc-600 dark:bg-surface"
+              className="w-full cursor-text rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/30 dark:border-zinc-600 dark:bg-surface"
           />
         </label>
         <label className="block">
@@ -328,7 +335,7 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/30 dark:border-zinc-600 dark:bg-surface"
+              className="w-full cursor-text rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/30 dark:border-zinc-600 dark:bg-surface"
           />
         </label>
         <div className="flex items-end gap-2 lg:justify-end">
@@ -336,7 +343,7 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
             <button
               type="button"
               onClick={clearFilters}
-              className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-surface dark:text-zinc-200 dark:hover:bg-zinc-800 lg:w-auto"
+              className="w-full cursor-pointer rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-surface dark:text-zinc-200 dark:hover:bg-zinc-800 lg:w-auto"
             >
               Clear filters
             </button>
@@ -409,7 +416,7 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
                     >
                       View
                     </button>
-                    <Link href={`/reports/${rep.id}`} className={actionTextClass}>
+                    <Link href={`/reports/${rep.id}`} className={`${actionTextClass} inline-block`}>
                       Edit
                     </Link>
                     {isAdmin ? (
@@ -462,7 +469,7 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
       />
       <ConfirmDialog
         open={folderToDelete !== null}
-        title="Delete client folder?"
+        title="Delete company folder?"
         description={
           folderToDelete
             ? `This permanently deletes “${folderToDelete.label}” and all ${folderToDelete.count} ${
@@ -485,7 +492,7 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
           <>
             <div className="border-b border-zinc-100 px-4 py-3 dark:border-zinc-800">
               <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                Clients
+                Companies
               </h2>
               <p className="mt-0.5 text-xs text-zinc-500">
                 Open a folder to see summaries. Use search and dates to narrow the list.
@@ -508,7 +515,7 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
                       <button
                         type="button"
                         onClick={() => openFolder(group.key)}
-                        className="flex min-w-0 flex-1 items-center gap-3 px-4 py-4 text-left"
+                        className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 px-4 py-4 text-left"
                       >
                         <span
                           className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-brand dark:border-zinc-600 dark:bg-zinc-800 dark:text-brand-on-dark"
@@ -567,7 +574,7 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
                                 count: group.rows.length,
                               });
                             }}
-                            className="rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
+                            className="cursor-pointer rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
                           >
                             Delete folder
                           </button>
@@ -585,7 +592,7 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
               <button
                 type="button"
                 onClick={goToRoot}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-surface dark:text-zinc-100 dark:hover:bg-zinc-800"
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-surface dark:text-zinc-100 dark:hover:bg-zinc-800"
               >
                 <svg
                   className="h-4 w-4"
@@ -597,7 +604,7 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                 </svg>
-                All clients
+                All companies
               </button>
               <span className="text-zinc-300 dark:text-zinc-600" aria-hidden>
                 /

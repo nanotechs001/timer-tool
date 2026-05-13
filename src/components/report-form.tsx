@@ -109,8 +109,8 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
   const [clickUpPanelOpen, setClickUpPanelOpen] = useState(false);
   const [manualDraft, setManualDraft] = useState({
     task: "",
-    hoursWorked: 0,
-    hoursTotal: 0,
+    hoursWorkedStr: "",
+    hoursTotalStr: "",
     notes: "",
   });
   const clickUpImportRef = useRef<HTMLDivElement>(null);
@@ -140,11 +140,33 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
     );
   }
 
+  function parseHoursField(s: string): number | null {
+    const t = s.trim();
+    if (t === "") return null;
+    const n = Number(t);
+    if (!Number.isFinite(n) || n < 0) return null;
+    return n;
+  }
+
   function addManualDraftToLineItems() {
     const task = manualDraft.task.trim();
     if (!task) return;
-    const total = Math.max(0, manualDraft.hoursTotal);
-    let worked = Math.max(0, manualDraft.hoursWorked);
+    let total = parseHoursField(manualDraft.hoursTotalStr);
+    let worked = parseHoursField(manualDraft.hoursWorkedStr);
+    if (total === null && worked === null) {
+      window.alert("Enter total hours or hours worked (or both).");
+      return;
+    }
+    if (total === null && worked !== null) {
+      window.alert(
+        "Total hours wasn’t set. We’ll use your hours worked for both planned total and worked time."
+      );
+      total = worked;
+    }
+    if (worked === null && total !== null) {
+      worked = total;
+    }
+    if (total === null || worked === null) return;
     if (worked > total) worked = total;
     setLineItems((rows) => [
       ...rows,
@@ -157,7 +179,7 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
         notes: manualDraft.notes.trim() || undefined,
       },
     ]);
-    setManualDraft({ task: "", hoursWorked: 0, hoursTotal: 0, notes: "" });
+    setManualDraft({ task: "", hoursWorkedStr: "", hoursTotalStr: "", notes: "" });
   }
 
   function removeLine(id: string) {
@@ -315,12 +337,17 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
             }
           >
             <option value="">No client</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-                {c.company ? ` (${c.company})` : ""}
-              </option>
-            ))}
+            {clients.map((c) => {
+              const primary = c.company?.trim() || c.name;
+              const extra =
+                c.company?.trim() && c.name && c.name !== primary ? ` · ${c.name}` : "";
+              return (
+                <option key={c.id} value={c.id}>
+                  {primary}
+                  {extra}
+                </option>
+              );
+            })}
           </select>
           <p className="mt-1.5 text-xs text-zinc-500">
             On the Clients page, link <strong className="font-medium text-zinc-600 dark:text-zinc-400">company</strong> to a ClickUp folder or list. With the DB migration applied, picking that client here pre-fills task import to their path.
@@ -430,7 +457,7 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
                 setClickUpPanelOpen(false);
               }}
               aria-expanded={manualPanelOpen}
-              className={`rounded-lg border-2 px-3 py-2 text-xs font-medium shadow-sm transition-colors ${
+              className={`cursor-pointer rounded-lg border-2 px-3 py-2 text-xs font-medium shadow-sm transition-colors ${
                 manualPanelOpen
                   ? "border-brand bg-brand-soft text-brand dark:bg-brand/20 dark:text-brand-on-dark"
                   : "border-brand bg-white text-brand hover:bg-brand-soft dark:bg-surface dark:text-brand-on-dark dark:hover:bg-brand/15"
@@ -456,7 +483,7 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
                 });
               }}
               aria-expanded={clickUpPanelOpen}
-              className={`rounded-lg border-2 border-brand px-3 py-2 text-xs font-medium text-brand-foreground shadow-sm transition-colors ${
+              className={`cursor-pointer rounded-lg border-2 border-brand px-3 py-2 text-xs font-medium text-brand-foreground shadow-sm transition-colors ${
                 clickUpPanelOpen
                   ? "bg-brand-hover hover:bg-brand-hover/95"
                   : "bg-brand hover:bg-brand-hover"
@@ -541,16 +568,12 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
                 <input
                   id="manual-worked"
                   type="number"
-                  min={0}
-                  step={0.25}
-                  className={MANUAL_INPUT_CLASS}
+                  inputMode="decimal"
+                  className={`${MANUAL_INPUT_CLASS} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
                   placeholder="0"
-                  value={manualDraft.hoursWorked}
+                  value={manualDraft.hoursWorkedStr}
                   onChange={(e) =>
-                    setManualDraft((d) => ({
-                      ...d,
-                      hoursWorked: Number(e.target.value) || 0,
-                    }))
+                    setManualDraft((d) => ({ ...d, hoursWorkedStr: e.target.value }))
                   }
                 />
               </div>
@@ -561,16 +584,12 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
                 <input
                   id="manual-total"
                   type="number"
-                  min={0}
-                  step={0.25}
-                  className={MANUAL_INPUT_CLASS}
+                  inputMode="decimal"
+                  className={`${MANUAL_INPUT_CLASS} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
                   placeholder="0"
-                  value={manualDraft.hoursTotal}
+                  value={manualDraft.hoursTotalStr}
                   onChange={(e) =>
-                    setManualDraft((d) => ({
-                      ...d,
-                      hoursTotal: Number(e.target.value) || 0,
-                    }))
+                    setManualDraft((d) => ({ ...d, hoursTotalStr: e.target.value }))
                   }
                 />
               </div>
@@ -591,7 +610,7 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
               </div>
               <button
                 type="button"
-                className="col-span-12 justify-self-start rounded-lg bg-brand px-5 py-2.5 text-sm font-medium whitespace-nowrap text-white shadow-sm hover:bg-brand-hover"
+                className="col-span-12 cursor-pointer justify-self-start rounded-lg bg-brand px-5 py-2.5 text-sm font-medium whitespace-nowrap text-white shadow-sm hover:bg-brand-hover"
                 onClick={() => addManualDraftToLineItems()}
               >
                 Add to list
@@ -640,10 +659,9 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
                       <td className="align-top px-3 py-2">
                         <input
                           type="number"
-                          min={0}
-                          step={0.25}
-                          className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm tabular-nums dark:border-zinc-800 dark:bg-surface"
-                          placeholder="Worked"
+                          inputMode="decimal"
+                          className="w-full cursor-text rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm tabular-nums [appearance:textfield] dark:border-zinc-800 dark:bg-surface [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          placeholder="0"
                           value={resolvedWorked(row)}
                           onChange={(e) => {
                             const w = Number(e.target.value) || 0;
@@ -656,10 +674,9 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
                       <td className="align-top px-3 py-2">
                         <input
                           type="number"
-                          min={0}
-                          step={0.25}
-                          className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm tabular-nums dark:border-zinc-800 dark:bg-surface"
-                          placeholder="Total"
+                          inputMode="decimal"
+                          className="w-full cursor-text rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm tabular-nums [appearance:textfield] dark:border-zinc-800 dark:bg-surface [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          placeholder="0"
                           value={row.hours}
                           onChange={(e) => {
                             const total = Number(e.target.value) || 0;
@@ -686,7 +703,7 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
                       <td className="align-top px-3 py-2">
                         <button
                           type="button"
-                          className="whitespace-nowrap rounded-lg border border-zinc-200 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800/65"
+                          className="cursor-pointer whitespace-nowrap rounded-lg border border-zinc-200 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800/65"
                           onClick={() => removeLine(row.id)}
                         >
                           Remove
@@ -720,7 +737,7 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
           type="button"
           disabled={busy}
           onClick={submit}
-          className="rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-hover disabled:opacity-50"
+          className="cursor-pointer rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-hover disabled:opacity-50"
         >
           {busy ? "Saving…" : mode === "create" ? "Create share link" : "Save changes"}
         </button>
@@ -729,7 +746,7 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
             type="button"
             disabled={busy}
             onClick={() => setDeleteDialogOpen(true)}
-            className="rounded-xl border border-red-200 px-5 py-2.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
+            className="cursor-pointer rounded-xl border border-red-200 px-5 py-2.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
           >
             Delete
           </button>
