@@ -1,31 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Client, Report } from "@/lib/types";
 import { totalPlannedHours, totalWorkedHours } from "@/lib/types";
 import { formatHours, formatSummaryCreatedAt } from "@/lib/format";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { NoticeDialog } from "@/components/notice-dialog";
 import { ReportPreviewDialog } from "@/components/report-preview-dialog";
-
-function toAbsoluteShareUrl(shareDisplay: string): string {
-  if (shareDisplay.startsWith("http://") || shareDisplay.startsWith("https://")) {
-    return shareDisplay;
-  }
-  if (typeof window === "undefined") return shareDisplay;
-  const path = shareDisplay.startsWith("/") ? shareDisplay : `/${shareDisplay}`;
-  return `${window.location.origin}${path}`;
-}
 
 export type SummaryRow = {
   report: Report;
@@ -126,10 +108,6 @@ function filterRows(
   );
 }
 
-type CopyTip = { reportId: string; ok: boolean };
-
-type TipPos = { x: number; y: number };
-
 type Props = {
   rows: SummaryRow[];
   shareBase: string;
@@ -142,10 +120,6 @@ type ReportDeleteTarget = { reportId: string; title: string };
 export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) {
   const router = useRouter();
   const [preview, setPreview] = useState<SummaryRow | null>(null);
-  const [copyTip, setCopyTip] = useState<CopyTip | null>(null);
-  const [tipPos, setTipPos] = useState<TipPos>({ x: 0, y: 0 });
-  const copyTipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const copyAnchorRef = useRef<HTMLElement | null>(null);
 
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -178,60 +152,6 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
       setOpenClientKey(null);
     }
   }, [folderView, openClientKey, groups]);
-
-  const showCopyTip = useCallback(
-    (reportId: string, ok: boolean, anchor: HTMLElement) => {
-      if (copyTipTimer.current) clearTimeout(copyTipTimer.current);
-      copyAnchorRef.current = anchor;
-      const r = anchor.getBoundingClientRect();
-      setTipPos({ x: r.left + r.width / 2, y: r.top });
-      setCopyTip({ reportId, ok });
-      copyTipTimer.current = setTimeout(() => {
-        setCopyTip(null);
-        copyAnchorRef.current = null;
-        copyTipTimer.current = null;
-      }, 2000);
-    },
-    []
-  );
-
-  useLayoutEffect(() => {
-    if (!copyTip) return;
-    const el = copyAnchorRef.current;
-    if (!el) return;
-
-    const sync = () => {
-      const r = el.getBoundingClientRect();
-      setTipPos({ x: r.left + r.width / 2, y: r.top });
-    };
-
-    sync();
-    window.addEventListener("scroll", sync, true);
-    window.addEventListener("resize", sync);
-    return () => {
-      window.removeEventListener("scroll", sync, true);
-      window.removeEventListener("resize", sync);
-    };
-  }, [copyTip]);
-
-  useEffect(() => {
-    return () => {
-      if (copyTipTimer.current) clearTimeout(copyTipTimer.current);
-    };
-  }, []);
-
-  const copyShareLink = useCallback(
-    async (shareDisplay: string, reportId: string, anchor: HTMLElement) => {
-      const text = toAbsoluteShareUrl(shareDisplay);
-      try {
-        await navigator.clipboard.writeText(text);
-        showCopyTip(reportId, true, anchor);
-      } catch {
-        showCopyTip(reportId, false, anchor);
-      }
-    },
-    [showCopyTip]
-  );
 
   const clearFilters = useCallback(() => {
     setSearch("");
@@ -288,8 +208,6 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
 
   const hasActiveFilters = Boolean(search.trim() || dateFrom.trim() || dateTo.trim());
 
-  const linkClass =
-    "cursor-pointer font-medium text-[#1433be] underline-offset-2 hover:underline dark:text-[#a4b4ff]";
   const actionTextClass =
     "cursor-pointer text-xs font-medium text-zinc-500 transition hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200";
 
@@ -359,7 +277,7 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
 
   const renderReportTable = (list: SummaryRow[]) => (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[800px] text-left text-sm">
+      <table className="w-full min-w-[720px] text-left text-sm">
         <thead className="border-b border-zinc-100 bg-white text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:bg-surface/55">
           <tr>
             <th className="px-4 py-2.5 font-medium">Created</th>
@@ -367,14 +285,10 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
             <th className="px-4 py-2.5 font-medium">Title</th>
             <th className="px-4 py-2.5 font-medium">Worked / total</th>
             <th className="px-4 py-2.5 font-medium">Share</th>
-            <th className="px-4 py-2.5 text-right font-medium"> </th>
           </tr>
         </thead>
         <tbody>
           {list.map(({ report: rep, client }) => {
-            const shareDisplay = shareBase
-              ? `${shareBase}/r/${rep.slug}`
-              : `/r/${rep.slug}`;
             const worked = totalWorkedHours(rep.lineItems);
             const planned = totalPlannedHours(rep.lineItems);
             return (
@@ -394,23 +308,8 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
                 <td className="px-4 py-3 tabular-nums text-zinc-600 dark:text-zinc-400">
                   {formatHours(worked)} / {formatHours(planned)} hrs
                 </td>
-                <td className="max-w-[14rem] px-4 py-3">
-                  <span className="inline-block max-w-full align-middle">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        const wrap = e.currentTarget.parentElement;
-                        if (wrap) void copyShareLink(shareDisplay, rep.id, wrap);
-                      }}
-                      className={`max-w-full cursor-pointer truncate text-left font-mono text-xs ${linkClass}`}
-                      title="Click to copy link"
-                    >
-                      {shareDisplay}
-                    </button>
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex flex-wrap items-center justify-end gap-2">
+                <td className="px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <button
                       type="button"
                       onClick={() => setPreview({ report: rep, client })}
@@ -418,9 +317,6 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
                     >
                       View
                     </button>
-                    <Link href={`/reports/${rep.id}`} className={`${actionTextClass} inline-block`}>
-                      Edit
-                    </Link>
                     {isAdmin ? (
                       <button
                         type="button"
@@ -638,30 +534,11 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
         client={preview?.client ?? null}
         shareBase={shareBase}
         onClose={() => setPreview(null)}
+        onEditSummary={() => {
+          if (!preview) return;
+          router.push(`/reports/${preview.report.id}`);
+        }}
       />
-
-      {copyTip && typeof document !== "undefined"
-        ? createPortal(
-            <div
-              role="status"
-              className="pointer-events-none fixed z-[9999]"
-              style={{
-                left: tipPos.x,
-                top: tipPos.y,
-                transform: "translate(-50%, calc(-100% - 6px))",
-              }}
-            >
-              <div className="relative inline-block whitespace-nowrap rounded-md bg-zinc-900 px-2 py-0.5 text-[11px] font-medium text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900">
-                {copyTip.ok ? "Link copied" : "Could not copy"}
-                <span
-                  className="absolute left-1/2 top-full -translate-x-1/2 border-[5px] border-transparent border-t-zinc-900 dark:border-t-zinc-100"
-                  aria-hidden
-                />
-              </div>
-            </div>,
-            document.body
-          )
-        : null}
     </>
   );
 }
