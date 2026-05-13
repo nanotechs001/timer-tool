@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { AuthInviteHashRecovery } from "@/components/auth-invite-hash-recovery";
+import { InviteAcceptFlow } from "@/components/invite-accept-flow";
 import { LoginForm } from "@/components/login-form";
 import { isAuthConfigured } from "@/lib/config";
 import { getSessionUser } from "@/lib/supabase/server";
@@ -48,7 +48,7 @@ export default async function Home({ searchParams }: Props) {
 
   return (
     <div className="flex min-h-full flex-col items-center justify-center bg-zinc-100 px-4 py-16 dark:bg-background">
-      <AuthInviteHashRecovery />
+      <InviteAcceptFlow />
       <LoginForm />
     </div>
   );
