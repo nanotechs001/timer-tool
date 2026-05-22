@@ -48,6 +48,20 @@ export type Report = {
   updatedAt: string;
 };
 
+export type ReportSnapshot = {
+  id: string;
+  reportId: string;
+  title: string;
+  clientId: string | null;
+  lineItems: LineItem[];
+  notes: string;
+  issueDate: string;
+  dueDate: string;
+  billFromName: string;
+  billFromEmail: string;
+  createdAt: string;
+};
+
 export function lineSubtotal(item: LineItem): number {
   return Math.round(item.hours * item.rate * 100) / 100;
 }

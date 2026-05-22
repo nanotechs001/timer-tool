@@ -4,7 +4,9 @@ import { listClients, listReports } from "@/lib/ledger";
 import { getViewerIsAdmin } from "@/lib/viewer";
 import { WorkSummariesTable } from "@/components/work-summaries-table";
 
-export default async function DashboardPage() {
+type Props = { searchParams: Promise<{ client?: string | string[] }> };
+
+export default async function DashboardPage({ searchParams }: Props) {
   if (!isDatabaseConfigured()) {
     return (
       <div className="mx-auto max-w-lg px-4 py-16 text-center text-sm text-zinc-600">
@@ -30,6 +32,12 @@ export default async function DashboardPage() {
   }));
 
   const isAdmin = await getViewerIsAdmin();
+  const sp = await searchParams;
+  const initialClientKeyRaw = Array.isArray(sp.client) ? sp.client[0] : sp.client;
+  const initialClientKey =
+    typeof initialClientKeyRaw === "string" && initialClientKeyRaw.trim()
+      ? initialClientKeyRaw.trim()
+      : null;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
@@ -55,7 +63,12 @@ export default async function DashboardPage() {
           {err}
         </p>
       ) : (
-        <WorkSummariesTable rows={rows} shareBase={base} isAdmin={isAdmin} />
+        <WorkSummariesTable
+          rows={rows}
+          shareBase={base}
+          isAdmin={isAdmin}
+          initialClientKey={initialClientKey}
+        />
       )}
     </div>
   );

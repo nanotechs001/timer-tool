@@ -1,13 +1,13 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   formatHours,
   formatReportPeriodLine,
   formatSummaryUpdatedAt,
   isIsoDateOnlyString,
 } from "@/lib/format";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { publicAppUrl } from "@/lib/config";
 import type { Client, LineItem, Report } from "@/lib/types";
 import { totalPlannedHours, totalWorkedHours } from "@/lib/types";
@@ -15,7 +15,9 @@ import { nanoid } from "nanoid";
 import { ClickUpWorkspacePicker } from "@/components/clickup-workspace-picker";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { NoticeDialog } from "@/components/notice-dialog";
+import { ReportPreviewDialog } from "@/components/report-preview-dialog";
 import { ShareLinkCreatedDialog } from "@/components/share-link-created-dialog";
+import { ClickUpPreloader } from "@/components/clickup-preloader";
 
 type Props = {
   clients: Client[];
@@ -24,6 +26,32 @@ type Props = {
   /** Only admins may delete a summary (API enforces this too). */
   canDelete?: boolean;
 };
+
+type ReportSnapshot = {
+  id: string;
+  savedAt: string;
+  title: string;
+  clientId: string;
+  notes: string;
+  periodStart: string;
+  periodEnd: string;
+  fromName: string;
+  fromEmail: string;
+  lineItems: LineItem[];
+};
+
+type ReportDraft = {
+  title: string;
+  clientId: string;
+  notes: string;
+  periodStart: string;
+  periodEnd: string;
+  fromName: string;
+  fromEmail: string;
+  lineItems: LineItem[];
+};
+
+const SNAPSHOT_PAGE_SIZE = 5;
 
 function resolvedWorked(r: LineItem): number {
   if (
@@ -78,8 +106,40 @@ function buildPublicReportUrl(slug: string): string {
   return `/r/${slug}`;
 }
 
-export function ReportForm({ clients, mode, initial, canDelete = false }: Props) {
+function toDateInputValue(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function snapshotToPreviewReport(
+  base: Report,
+  snapshot: ReportSnapshot
+): Report {
+  return {
+    ...base,
+    title: snapshot.title || base.title,
+    clientId: snapshot.clientId || null,
+    notes: snapshot.notes,
+    issueDate: snapshot.periodStart,
+    dueDate: snapshot.periodEnd,
+    billFromName: snapshot.fromName,
+    billFromEmail: snapshot.fromEmail,
+    lineItems: snapshot.lineItems,
+    updatedAt: snapshot.savedAt,
+  };
+}
+
+export function ReportForm({
+  clients,
+  mode,
+  initial,
+  canDelete = false,
+}: Props) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [title, setTitle] = useState(initial?.title ?? "");
   const [clientId, setClientId] = useState<string | "">(initial?.clientId ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
@@ -128,6 +188,13 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
   } | null>(null);
   const [manualPanelOpen, setManualPanelOpen] = useState(false);
   const [clickUpPanelOpen, setClickUpPanelOpen] = useState(false);
+  const [snapshotsOpen, setSnapshotsOpen] = useState(false);
+  const [snapshotsPage, setSnapshotsPage] = useState(1);
+  const [snapshots, setSnapshots] = useState<ReportSnapshot[]>([]);
+  const [snapshotsLoading, setSnapshotsLoading] = useState(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [snapshotToLoad, setSnapshotToLoad] = useState<ReportSnapshot | null>(null);
+  const [snapshotPreview, setSnapshotPreview] = useState<ReportSnapshot | null>(null);
   const [manualDraft, setManualDraft] = useState({
     task: "",
     hoursWorkedStr: "",
@@ -143,6 +210,21 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
     () => (clientId ? clients.find((c) => c.id === clientId) : undefined),
     [clients, clientId]
   );
+  const snapshotPreviewClient = useMemo(
+    () =>
+      snapshotPreview?.clientId
+        ? (clients.find((c) => c.id === snapshotPreview.clientId) ?? null)
+        : null,
+    [clients, snapshotPreview]
+  );
+  const snapshotPreviewReport = useMemo(
+    () =>
+      mode === "edit" && initial && snapshotPreview
+        ? snapshotToPreviewReport(initial, snapshotPreview)
+        : null,
+    [initial, mode, snapshotPreview]
+  );
+  const previewShareBase = publicAppUrl();
 
   const clickUpInitial = useMemo(() => {
     const c = selectedClient;
@@ -154,6 +236,116 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
       listId: c.clickupListId ?? "",
     };
   }, [selectedClient]);
+
+  function captureDraft(): ReportDraft {
+    return {
+      title: title.trim(),
+      clientId: clientId === "" ? "" : clientId,
+      notes: notes.trim(),
+      periodStart: periodStart.trim(),
+      periodEnd: periodEnd.trim(),
+      fromName: fromName.trim(),
+      fromEmail: fromEmail.trim(),
+      lineItems: lineItems.map((r) => ({
+        ...r,
+        task: r.task.trim(),
+        rate: 0,
+        notes: r.notes?.trim() || undefined,
+      })),
+    };
+  }
+
+  function draftSignature() {
+    return JSON.stringify(captureDraft());
+  }
+
+  const [lastSavedSignature, setLastSavedSignature] = useState(() =>
+    JSON.stringify(captureDraft())
+  );
+  const currentSignature = draftSignature();
+  const isDirty = mode === "edit" ? currentSignature !== lastSavedSignature : true;
+  const totalSnapshotPages = Math.max(1, Math.ceil(snapshots.length / SNAPSHOT_PAGE_SIZE));
+  const snapshotPage = Math.min(snapshotsPage, totalSnapshotPages);
+  const pagedSnapshots = useMemo(() => {
+    const start = (snapshotPage - 1) * SNAPSHOT_PAGE_SIZE;
+    return snapshots.slice(start, start + SNAPSHOT_PAGE_SIZE);
+  }, [snapshotPage, snapshots]);
+
+  useEffect(() => {
+    const base = captureDraft();
+    setLastSavedSignature(JSON.stringify(base));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initial?.id]);
+
+  async function fetchSnapshots() {
+    if (mode !== "edit" || !initial) return;
+    setSnapshotsLoading(true);
+    try {
+      const res = await fetch(`/api/reports/${initial.id}/snapshots`);
+      const data = (await res.json().catch(() => [])) as unknown;
+      if (!res.ok) {
+        throw new Error("Failed to load previous reports.");
+      }
+      if (!Array.isArray(data)) {
+        setSnapshots([]);
+        return;
+      }
+      const mapped = data
+        .filter((row) => row && typeof row === "object")
+        .map((row) => {
+          const r = row as Record<string, unknown>;
+          return {
+            id: String(r.id ?? ""),
+            savedAt: String(r.createdAt ?? ""),
+            title: String(r.title ?? ""),
+            clientId: typeof r.clientId === "string" ? r.clientId : "",
+            notes: String(r.notes ?? ""),
+            periodStart: String(r.issueDate ?? ""),
+            periodEnd: String(r.dueDate ?? ""),
+            fromName: String(r.billFromName ?? ""),
+            fromEmail: String(r.billFromEmail ?? ""),
+            lineItems: Array.isArray(r.lineItems) ? (r.lineItems as LineItem[]) : [],
+          } satisfies ReportSnapshot;
+        })
+        .filter((row) => row.id);
+      setSnapshots(mapped);
+      setSnapshotsPage(1);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to load previous reports.";
+      setError(msg);
+    } finally {
+      setSnapshotsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (mode !== "edit") return;
+    if (searchParams.get("view") !== "previous") return;
+    setSnapshotsOpen(true);
+    void fetchSnapshots();
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("view");
+    const q = next.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname);
+  }, [mode, pathname, router, searchParams]);
+
+  function loadSnapshot(snapshot: ReportSnapshot) {
+    setTitle(snapshot.title);
+    setClientId(snapshot.clientId === "" ? "" : snapshot.clientId);
+    setNotes(snapshot.notes);
+    setPeriodStart(snapshot.periodStart);
+    setPeriodEnd(snapshot.periodEnd);
+    setFromName(snapshot.fromName);
+    setFromEmail(snapshot.fromEmail);
+    setLineItems(snapshot.lineItems);
+    setError(null);
+  }
+
+  function confirmLoadSnapshot() {
+    if (!snapshotToLoad) return;
+    loadSnapshot(snapshotToLoad);
+    setSnapshotToLoad(null);
+  }
 
   function updateLine(id: string, patch: Partial<LineItem>) {
     setLineItems((rows) =>
@@ -247,21 +439,17 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
         dueDate = legacyPeriodSnapshot.rawDue.trim();
       }
 
+      const draft = captureDraft();
       const payload = {
-        title: title.trim(),
-        clientId: clientId === "" ? null : clientId,
-        lineItems: lineItems.map((r) => ({
-          ...r,
-          task: r.task.trim(),
-          rate: 0,
-          notes: r.notes?.trim() || undefined,
-        })),
+        title: draft.title,
+        clientId: draft.clientId === "" ? null : draft.clientId,
+        lineItems: draft.lineItems,
         currency: "USD",
-        notes: notes.trim(),
+        notes: draft.notes,
         issueDate,
         dueDate,
-        billFromName: fromName.trim(),
-        billFromEmail: fromEmail.trim(),
+        billFromName: draft.fromName,
+        billFromEmail: draft.fromEmail,
       };
 
       if (mode === "create") {
@@ -303,6 +491,14 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
               "Update failed"
           );
         }
+        setLastSavedSignature(JSON.stringify(draft));
+        if (snapshotsOpen) {
+          void fetchSnapshots();
+        }
+        setNotice({
+          title: "Summary updated",
+          description: "Your changes were saved successfully.",
+        });
         router.refresh();
       }
     } catch (e) {
@@ -340,8 +536,34 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
     router.refresh();
   }
 
+  function resetEditData() {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    setTitle("");
+    setPeriodStart(toDateInputValue(startOfMonth));
+    setPeriodEnd(toDateInputValue(now));
+    setNotes("");
+    setLineItems((rows) =>
+      rows.map((row) => ({
+        ...row,
+        hoursWorked: 0,
+      }))
+    );
+    setError(null);
+  }
+
   return (
-    <div className="mx-auto max-w-3xl space-y-8 px-4 py-8">
+    <div className="mx-auto mt-6 mb-12 max-w-3xl space-y-8 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-surface sm:mb-16 sm:p-6">
+      <ClickUpPreloader initialClickUp={clickUpInitial} />
+      <ReportPreviewDialog
+        report={snapshotPreviewReport}
+        client={snapshotPreviewClient}
+        shareBase={previewShareBase}
+        onClose={() => setSnapshotPreview(null)}
+        onEditSummary={() => setSnapshotPreview(null)}
+        hideEditSummaryAction
+        hidePublicActions
+      />
       <ShareLinkCreatedDialog
         open={createdShare !== null}
         reportTitle={createdShare?.title ?? ""}
@@ -359,6 +581,140 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
         onCancel={() => !busy && setDeleteDialogOpen(false)}
         onConfirm={() => void executeDeleteReport()}
       />
+      <ConfirmDialog
+        open={resetConfirmOpen}
+        title="Clear summary data?"
+        description="This resets the title, period, overview, and worked hours. Total hours stay unchanged."
+        confirmLabel="Clear data"
+        cancelLabel="Cancel"
+        onCancel={() => setResetConfirmOpen(false)}
+        onConfirm={() => {
+          resetEditData();
+          setResetConfirmOpen(false);
+        }}
+      />
+      <ConfirmDialog
+        open={snapshotToLoad !== null}
+        title="Load this snapshot?"
+        description="This will replace your current form values with the selected snapshot."
+        confirmLabel="Load snapshot"
+        cancelLabel="Cancel"
+        onCancel={() => setSnapshotToLoad(null)}
+        onConfirm={confirmLoadSnapshot}
+      />
+      {mode === "edit" && initial && snapshotsOpen ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 cursor-pointer bg-black/50 backdrop-blur-[1px]"
+            aria-label="Close previous reports"
+            onClick={() => setSnapshotsOpen(false)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="previous-reports-title"
+            className="relative z-[101] w-full max-w-3xl rounded-2xl border border-zinc-200 bg-white p-4 shadow-xl dark:border-zinc-700 dark:bg-surface"
+          >
+            <div className="mb-3 flex items-center justify-between gap-3 border-b border-zinc-100 pb-3 dark:border-zinc-800">
+              <h2
+                id="previous-reports-title"
+                className="text-sm font-semibold text-zinc-900 dark:text-zinc-100"
+              >
+                Previous reports
+              </h2>
+              <button
+                type="button"
+                onClick={() => setSnapshotsOpen(false)}
+                className="cursor-pointer rounded-lg px-2.5 py-1 text-sm font-medium text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+              >
+                Close
+              </button>
+            </div>
+            {snapshotsLoading ? (
+              <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-4 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-300">
+                Loading previous reports...
+              </div>
+            ) : snapshots.length > 0 ? (
+              <>
+                <div className="overflow-x-auto rounded-xl border border-zinc-200/80 bg-white dark:border-zinc-800 dark:bg-zinc-900/40">
+                  <table className="w-full min-w-[420px] text-left text-xs">
+                    <thead className="border-b border-zinc-100 bg-zinc-50 text-[11px] uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:bg-surface/55">
+                      <tr>
+                        <th className="px-3 py-2 font-medium">Summary title</th>
+                        <th className="px-3 py-2 font-medium">Saved</th>
+                        <th className="px-3 py-2 font-medium text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pagedSnapshots.map((snapshot) => (
+                        <tr
+                          key={snapshot.id}
+                          className="border-b border-zinc-100 last:border-0 dark:border-zinc-800/80"
+                        >
+                          <td className="px-3 py-2.5 text-sm text-zinc-800 dark:text-zinc-100">
+                            {snapshot.title || "Untitled summary"}
+                          </td>
+                          <td className="px-3 py-2.5 text-zinc-600 dark:text-zinc-400">
+                            {formatSummaryUpdatedAt(snapshot.savedAt)}
+                          </td>
+                          <td className="px-3 py-2.5 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setSnapshotPreview(snapshot)}
+                                className="cursor-pointer rounded-md border border-brand/40 bg-brand-soft/70 px-2.5 py-1 text-xs font-medium text-brand hover:bg-brand-soft dark:border-brand/40 dark:bg-brand/20 dark:text-brand-on-dark dark:hover:bg-brand/25"
+                              >
+                                Preview
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setSnapshotToLoad(snapshot)}
+                                className="cursor-pointer rounded-md bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-hover"
+                              >
+                                Load
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {snapshots.length > SNAPSHOT_PAGE_SIZE ? (
+                  <div className="mt-3 flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSnapshotsPage((p) => Math.max(1, p - 1))}
+                      disabled={snapshotPage <= 1}
+                      className="cursor-pointer rounded-md border border-zinc-200 bg-white px-2.5 py-1 text-xs text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-surface dark:text-zinc-200 dark:hover:bg-zinc-900"
+                    >
+                      Previous
+                    </button>
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                      Page {snapshotPage} of {totalSnapshotPages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSnapshotsPage((p) => Math.min(totalSnapshotPages, p + 1))
+                      }
+                      disabled={snapshotPage >= totalSnapshotPages}
+                      className="cursor-pointer rounded-md border border-zinc-200 bg-white px-2.5 py-1 text-xs text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-surface dark:text-zinc-200 dark:hover:bg-zinc-900"
+                    >
+                      Next
+                    </button>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <p className="rounded-lg border border-dashed border-zinc-200 bg-white/70 px-3 py-2 text-xs text-zinc-500 dark:border-zinc-700 dark:bg-surface/35 dark:text-zinc-400">
+                No snapshots yet. Click <strong className="font-medium">Save changes</strong> to store one.
+              </p>
+            )}
+          </div>
+        </div>
+      ) : null}
       <NoticeDialog
         open={notice !== null}
         title={notice?.title ?? ""}
@@ -373,9 +729,22 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
       ) : null}
 
       {mode === "edit" && initial ? (
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Last updated {formatSummaryUpdatedAt(initial.updatedAt || initial.createdAt)}
-        </p>
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Last updated {formatSummaryUpdatedAt(initial.updatedAt || initial.createdAt)}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setResetConfirmOpen(true)}
+                className="cursor-pointer rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-surface dark:text-zinc-200 dark:hover:bg-zinc-900"
+              >
+                Reset data
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -800,7 +1169,7 @@ export function ReportForm({ clients, mode, initial, canDelete = false }: Props)
       <div className="flex flex-wrap gap-3">
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || (mode === "edit" && !isDirty)}
           onClick={submit}
           className="cursor-pointer rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-hover disabled:opacity-50"
         >

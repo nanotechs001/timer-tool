@@ -58,29 +58,6 @@ function groupByClient(rows: SummaryRow[]): ClientGroup[] {
   return groups;
 }
 
-function normalizeDateRange(from: string, to: string): { start?: Date; end?: Date } {
-  const f = from.trim();
-  const t = to.trim();
-  let start = f ? new Date(`${f}T00:00:00`) : undefined;
-  let end = t ? new Date(`${t}T23:59:59.999`) : undefined;
-  if (start && Number.isNaN(start.getTime())) start = undefined;
-  if (end && Number.isNaN(end.getTime())) end = undefined;
-  if (start && end && start.getTime() > end.getTime()) {
-    start = t ? new Date(`${t}T00:00:00`) : undefined;
-    end = f ? new Date(`${f}T23:59:59.999`) : undefined;
-  }
-  return { start, end };
-}
-
-function rowInDateRange(row: SummaryRow, start?: Date, end?: Date): boolean {
-  if (!start && !end) return true;
-  const t = new Date(row.report.createdAt || 0).getTime();
-  if (Number.isNaN(t)) return false;
-  if (start && t < start.getTime()) return false;
-  if (end && t > end.getTime()) return false;
-  return true;
-}
-
 function rowMatchesSearch(row: SummaryRow, q: string): boolean {
   const s = q.trim().toLowerCase();
   if (!s) return true;
@@ -96,46 +73,41 @@ function rowMatchesSearch(row: SummaryRow, q: string): boolean {
   return false;
 }
 
-function filterRows(
-  rows: SummaryRow[],
-  search: string,
-  dateFrom: string,
-  dateTo: string
-): SummaryRow[] {
-  const { start, end } = normalizeDateRange(dateFrom, dateTo);
-  return rows.filter(
-    (row) => rowInDateRange(row, start, end) && rowMatchesSearch(row, search)
-  );
+function filterRows(rows: SummaryRow[], search: string): SummaryRow[] {
+  return rows.filter((row) => rowMatchesSearch(row, search));
 }
 
 type Props = {
   rows: SummaryRow[];
   shareBase: string;
   isAdmin?: boolean;
+  initialClientKey?: string | null;
 };
 
 type FolderDeleteTarget = { clientId: string; label: string; count: number };
 type ReportDeleteTarget = { reportId: string; title: string };
 
-export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) {
+export function WorkSummariesTable({
+  rows,
+  shareBase,
+  isAdmin = false,
+  initialClientKey = null,
+}: Props) {
   const router = useRouter();
   const [preview, setPreview] = useState<SummaryRow | null>(null);
 
   const [search, setSearch] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [folderView, setFolderView] = useState<"root" | "client">("root");
-  const [openClientKey, setOpenClientKey] = useState<string | null>(null);
+  const [folderView, setFolderView] = useState<"root" | "client">(
+    initialClientKey ? "client" : "root"
+  );
+  const [openClientKey, setOpenClientKey] = useState<string | null>(initialClientKey);
   const [folderToDelete, setFolderToDelete] = useState<FolderDeleteTarget | null>(null);
   const [folderDeleteBusy, setFolderDeleteBusy] = useState(false);
   const [reportToDelete, setReportToDelete] = useState<ReportDeleteTarget | null>(null);
   const [reportDeleteBusy, setReportDeleteBusy] = useState(false);
   const [actionErrorNotice, setActionErrorNotice] = useState<string | null>(null);
 
-  const filteredRows = useMemo(
-    () => filterRows(rows, search, dateFrom, dateTo),
-    [rows, search, dateFrom, dateTo]
-  );
+  const filteredRows = useMemo(() => filterRows(rows, search), [rows, search]);
 
   const groups = useMemo(() => groupByClient(filteredRows), [filteredRows]);
 
@@ -155,8 +127,6 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
 
   const clearFilters = useCallback(() => {
     setSearch("");
-    setDateFrom("");
-    setDateTo("");
   }, []);
 
   async function executeDeleteFolder() {
@@ -206,7 +176,7 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
     }
   }
 
-  const hasActiveFilters = Boolean(search.trim() || dateFrom.trim() || dateTo.trim());
+  const hasActiveFilters = Boolean(search.trim());
 
   const openFolder = (key: string) => {
     setOpenClientKey(key);
@@ -220,8 +190,8 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
 
   const filterToolbar = (
     <div className="mt-6 flex flex-col gap-3 rounded-xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-700 dark:bg-zinc-900/40">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
-        <label className="block sm:col-span-2 lg:col-span-1">
+      <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
+        <label className="block">
           <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500">
             Search
           </span>
@@ -230,28 +200,6 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Company, contact, or task…"
-              className="w-full cursor-text rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/30 dark:border-zinc-600 dark:bg-surface"
-          />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500">
-            Submitted from
-          </span>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full cursor-text rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/30 dark:border-zinc-600 dark:bg-surface"
-          />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500">
-            Submitted to
-          </span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
               className="w-full cursor-text rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/30 dark:border-zinc-600 dark:bg-surface"
           />
         </label>
@@ -313,6 +261,19 @@ export function WorkSummariesTable({ rows, shareBase, isAdmin = false }: Props) 
                       className="cursor-pointer rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand/40"
                     >
                       View
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const clientKey = openClientKey ?? rep.clientId ?? "__none__";
+                        const returnTo = `/dashboard?client=${encodeURIComponent(clientKey)}`;
+                        router.push(
+                          `/reports/${rep.id}?returnTo=${encodeURIComponent(returnTo)}`
+                        );
+                      }}
+                      className="cursor-pointer rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 shadow-sm hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-300/60 dark:border-zinc-600 dark:bg-surface dark:text-zinc-200 dark:hover:bg-zinc-800"
+                    >
+                      Edit
                     </button>
                     {isAdmin ? (
                       <button

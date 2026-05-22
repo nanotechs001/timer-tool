@@ -1,4 +1,4 @@
-import type { Client, LineItem, Report } from "@/lib/types";
+import type { Client, LineItem, Report, ReportSnapshot } from "@/lib/types";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
 const REPORT_COLUMNS =
@@ -7,11 +7,22 @@ const REPORT_COLUMNS =
 const REPORT_COLUMNS_LEGACY =
   "id,slug,title,client_id,line_items,currency,notes,issue_date,due_date,bill_from_name,bill_from_email,created_at,updated_at";
 
+const REPORT_SNAPSHOT_COLUMNS =
+  "id,report_id,title,client_id,line_items,notes,issue_date,due_date,bill_from_name,bill_from_email,created_at";
+
 function isMissingReportCreatorColumnsError(message: string): boolean {
   const m = message.toLowerCase();
   return (
     m.includes("created_by") ||
     (m.includes("schema cache") && m.includes("reports"))
+  );
+}
+
+function isMissingReportSnapshotsTableError(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes("report_snapshots") &&
+    (m.includes("does not exist") || m.includes("schema cache") || m.includes("relation"))
   );
 }
 
@@ -126,6 +137,41 @@ function mapReportRow(r: {
     createdAt,
     updatedAt: (r.updated_at ?? createdAt) || "",
   };
+}
+
+function mapReportSnapshotRow(r: {
+  id: string;
+  report_id: string;
+  title: string;
+  client_id: string | null;
+  line_items: unknown;
+  notes: string | null;
+  issue_date: string | null;
+  due_date: string | null;
+  bill_from_name: string | null;
+  bill_from_email: string | null;
+  created_at?: string | null;
+}): ReportSnapshot {
+  return {
+    id: r.id,
+    reportId: r.report_id,
+    title: r.title,
+    clientId: r.client_id,
+    lineItems: parseLineItems(r.line_items),
+    notes: r.notes ?? "",
+    issueDate: r.issue_date ?? "",
+    dueDate: r.due_date ?? "",
+    billFromName: r.bill_from_name ?? "",
+    billFromEmail: r.bill_from_email ?? "",
+    createdAt: r.created_at ?? "",
+  };
+}
+
+function toUtcDateOnly(now: Date): string {
+  const y = now.getUTCFullYear();
+  const m = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(now.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 export async function listClients(): Promise<Client[]> {
@@ -389,6 +435,57 @@ export async function getReportBySlug(slug: string): Promise<Report | null> {
   return first.data ? mapReportRow(first.data) : null;
 }
 
+export async function listReportSnapshots(reportId: string): Promise<ReportSnapshot[]> {
+  const sb = createSupabaseAdmin();
+  const res = await sb
+    .from("report_snapshots")
+    .select(REPORT_SNAPSHOT_COLUMNS)
+    .eq("report_id", reportId)
+    .order("created_at", { ascending: false });
+  if (res.error) {
+    if (isMissingReportSnapshotsTableError(res.error.message)) {
+      return [];
+    }
+    throw new Error(res.error.message);
+  }
+  return (res.data ?? []).map(mapReportSnapshotRow);
+}
+
+async function createDailyReportSnapshotIfNeeded(report: Report): Promise<void> {
+  const sb = createSupabaseAdmin();
+  const day = toUtcDateOnly(new Date());
+  const existing = await sb
+    .from("report_snapshots")
+    .select("id")
+    .eq("report_id", report.id)
+    .eq("snapshot_day", day)
+    .limit(1);
+  if (existing.error) {
+    if (isMissingReportSnapshotsTableError(existing.error.message)) {
+      return;
+    }
+    throw new Error(existing.error.message);
+  }
+  if ((existing.data ?? []).length > 0) {
+    return;
+  }
+  const insertRes = await sb.from("report_snapshots").insert({
+    report_id: report.id,
+    snapshot_day: day,
+    title: report.title,
+    client_id: report.clientId,
+    line_items: report.lineItems,
+    notes: report.notes,
+    issue_date: report.issueDate,
+    due_date: report.dueDate,
+    bill_from_name: report.billFromName,
+    bill_from_email: report.billFromEmail,
+  });
+  if (insertRes.error && !isMissingReportSnapshotsTableError(insertRes.error.message)) {
+    throw new Error(insertRes.error.message);
+  }
+}
+
 export async function createReport(input: {
   title: string;
   slug: string;
@@ -459,6 +556,7 @@ export async function updateReport(
 ): Promise<Report> {
   const current = await getReport(id);
   if (!current) throw new Error("Report not found");
+  await createDailyReportSnapshotIfNeeded(current);
   const merged = {
     title: input.title ?? current.title,
     clientId: input.clientId !== undefined ? input.clientId : current.clientId,

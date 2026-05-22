@@ -77,6 +77,25 @@ function IconCheck({ className }: { className?: string }) {
   );
 }
 
+function IconDownload({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+      aria-hidden
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v1a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-1"
+      />
+    </svg>
+  );
+}
+
 const toolbarActionClass =
   "inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1 text-sm font-medium text-zinc-600 underline-offset-4 transition hover:bg-zinc-100 hover:text-zinc-900 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/35 focus-visible:ring-offset-2 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 dark:focus-visible:ring-offset-zinc-900";
 
@@ -86,6 +105,8 @@ type Props = {
   shareBase: string;
   onClose: () => void;
   onEditSummary: () => void;
+  hideEditSummaryAction?: boolean;
+  hidePublicActions?: boolean;
 };
 
 export function ReportPreviewDialog({
@@ -94,6 +115,8 @@ export function ReportPreviewDialog({
   shareBase,
   onClose,
   onEditSummary,
+  hideEditSummaryAction = false,
+  hidePublicActions = false,
 }: Props) {
   const [copied, setCopied] = useState(false);
 
@@ -144,9 +167,11 @@ export function ReportPreviewDialog({
     onClose();
   }
 
+  const pdfUrl = `/api/pdf/${encodeURIComponent(report.slug)}`;
+
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-4"
+      className="fixed inset-0 z-[130] flex items-end justify-center sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="report-preview-title"
@@ -178,24 +203,34 @@ export function ReportPreviewDialog({
             className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-800/80"
             aria-label="Public summary actions"
           >
-            <button type="button" onClick={viewPublic} className={toolbarActionClass}>
-              <IconExternalLink className="h-4 w-4 shrink-0 text-zinc-500 dark:text-zinc-500" />
-              <span>View public page</span>
-            </button>
-            <button type="button" onClick={() => void copyUrl()} className={toolbarActionClass}>
-              {copied ? (
-                <IconCheck className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-              ) : (
-                <IconLink className="h-4 w-4 shrink-0 text-zinc-500 dark:text-zinc-500" />
-              )}
-              <span className={copied ? "text-emerald-700 dark:text-emerald-400" : undefined}>
-                {copied ? "Copied" : "Copy shareable link"}
-              </span>
-            </button>
-            <button type="button" onClick={editSummary} className={toolbarActionClass}>
-              <IconPencil className="h-4 w-4 shrink-0 text-zinc-500 dark:text-zinc-500" />
-              <span>Edit summary</span>
-            </button>
+            {!hidePublicActions ? (
+              <>
+                <button type="button" onClick={viewPublic} className={toolbarActionClass}>
+                  <IconExternalLink className="h-4 w-4 shrink-0 text-zinc-500 dark:text-zinc-500" />
+                  <span>View public page</span>
+                </button>
+                <button type="button" onClick={() => void copyUrl()} className={toolbarActionClass}>
+                  {copied ? (
+                    <IconCheck className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  ) : (
+                    <IconLink className="h-4 w-4 shrink-0 text-zinc-500 dark:text-zinc-500" />
+                  )}
+                  <span className={copied ? "text-emerald-700 dark:text-emerald-400" : undefined}>
+                    {copied ? "Copied" : "Copy shareable link"}
+                  </span>
+                </button>
+              </>
+            ) : null}
+            {!hideEditSummaryAction ? (
+              <button type="button" onClick={editSummary} className={toolbarActionClass}>
+                <IconPencil className="h-4 w-4 shrink-0 text-zinc-500 dark:text-zinc-500" />
+                <span>Edit summary</span>
+              </button>
+            ) : null}
+            <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className={toolbarActionClass}>
+              <IconDownload className="h-4 w-4 shrink-0 text-zinc-500 dark:text-zinc-500" />
+              <span>Download PDF</span>
+            </a>
           </nav>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-4">
