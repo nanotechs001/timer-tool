@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { InlineSpinner } from "@/components/inline-spinner";
 
@@ -12,11 +11,12 @@ type Props = {
 };
 
 export function UserAccountMenu({ userEmail, isAdmin = false }: Props) {
-  const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
 
   async function signOut() {
     if (signingOut) return;
+    setSignOutError(null);
     setSigningOut(true);
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key =
@@ -25,11 +25,14 @@ export function UserAccountMenu({ userEmail, isAdmin = false }: Props) {
     try {
       if (url && key) {
         const supabase = createBrowserClient(url, key);
-        await supabase.auth.signOut();
+        const { error } = await supabase.auth.signOut({ scope: "global" });
+        if (error) throw error;
       }
-      router.push("/");
-      router.refresh();
-    } finally {
+      // Keep the loader visible until the browser fully lands on login.
+      window.location.replace("/login");
+      return;
+    } catch (error) {
+      setSignOutError(error instanceof Error ? error.message : "Could not sign out. Please try again.");
       setSigningOut(false);
     }
   }
@@ -47,6 +50,11 @@ export function UserAccountMenu({ userEmail, isAdmin = false }: Props) {
             <InlineSpinner className="scale-[1.6]" />
             <p className="text-sm text-zinc-600 dark:text-zinc-300">Signing out…</p>
           </div>
+        </div>
+      ) : null}
+      {signOutError ? (
+        <div className="fixed left-1/2 top-20 z-[91] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 shadow-lg dark:border-red-900 dark:bg-red-950/40 dark:text-red-100">
+          {signOutError}
         </div>
       ) : null}
       <div className="group relative inline-block text-left">
