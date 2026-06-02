@@ -179,7 +179,7 @@ export function WorkSummaryPdfDocument({ report, client }: Props) {
           <Text style={styles.grand}>
             {formatHours(workedSum)} / {formatHours(plannedSum)} hrs
           </Text>
-          <Text style={styles.grandSub}>Worked / planned</Text>
+          <Text style={styles.grandSub}>Worked / pre-allocated</Text>
         </View>
 
         {report.notes ? (

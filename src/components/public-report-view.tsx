@@ -180,7 +180,9 @@ export function PublicReportView({
                 <p className="text-2xl font-semibold tabular-nums text-brand dark:text-brand-on-dark">
                   {formatHours(workedTotal)} / {formatHours(plannedTotal)} hrs
                 </p>
-                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Worked / planned</p>
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  Worked / pre-allocated
+                </p>
               </div>
             </div>
 
