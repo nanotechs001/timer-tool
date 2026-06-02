@@ -31,7 +31,7 @@ function normalizeLineItems(items: LineDraft[] | undefined): LineItem[] | undefi
     let worked: number | undefined;
     if (row.hoursWorked !== undefined && row.hoursWorked !== null) {
       const w = Number(row.hoursWorked);
-      if (Number.isFinite(w)) worked = Math.min(Math.max(0, w), total);
+      if (Number.isFinite(w)) worked = Math.max(0, w);
     }
     const base: LineItem = {
       id,
@@ -40,7 +40,7 @@ function normalizeLineItems(items: LineDraft[] | undefined): LineItem[] | undefi
       rate: row.rate ?? 0,
       notes: row.notes,
     };
-    if (worked !== undefined && worked < total) {
+    if (worked !== undefined) {
       base.hoursWorked = worked;
     }
     return base;

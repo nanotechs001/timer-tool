@@ -372,8 +372,7 @@ export function ReportForm({
   }
 
   function appendManualLine(task: string, total: number, worked: number, notesTrim: string | undefined) {
-    let w = worked;
-    if (w > total) w = total;
+    const w = Math.max(0, worked);
     setLineItems((rows) => [
       ...rows,
       {
@@ -404,9 +403,9 @@ export function ReportForm({
     if (total === null && worked !== null) {
       const w = worked;
       setNotice({
-        title: "Total hours not set",
+        title: "Pre-allocated hours not set",
         description:
-          "You entered hours worked but left total hours empty. We’ll use that same value for both planned total and worked time.",
+          "You entered worked hours but left pre-allocated hours empty. We’ll use that same value for both fields.",
         onOk: () => appendManualLine(task, w, w, notesTrim),
       });
       return;
@@ -606,7 +605,7 @@ export function ReportForm({
       <ConfirmDialog
         open={resetConfirmOpen}
         title="Clear summary data?"
-        description="This resets the title, period, overview, and worked hours. Total hours stay unchanged."
+        description="This resets the title, period, overview, and worked hours. Pre-allocated hours stay unchanged."
         confirmLabel="Clear data"
         cancelLabel="Cancel"
         onCancel={() => setResetConfirmOpen(false)}
@@ -938,7 +937,7 @@ export function ReportForm({
             <p className="mt-1 max-w-xl text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
               Add rows with <strong className="font-medium text-zinc-800 dark:text-zinc-200">Add manually</strong>{" "}
               (task, <strong className="font-medium text-zinc-800 dark:text-zinc-200">worked hours</strong>,{" "}
-              <strong className="font-medium text-zinc-800 dark:text-zinc-200">total / planned hours</strong>, and
+              <strong className="font-medium text-zinc-800 dark:text-zinc-200">pre-allocated hours</strong>, and
               per-task notes) or use{" "}
               <strong className="font-medium text-zinc-800 dark:text-zinc-200">Load from ClickUp</strong>{" "}
               to import a task. Tracked time fills both columns until you adjust them; notes stay in the table below.
@@ -1000,8 +999,9 @@ export function ReportForm({
                 Go <strong className="font-medium">Workspace → Folder → List → Task</strong> (folder
                 rows match company search), review <strong className="font-medium">hours</strong> from
                 ClickUp when available, then <strong className="font-medium">Add row from this task</strong>.{" "}
-                Both <strong className="font-medium">worked</strong> and <strong className="font-medium">total</strong>{" "}
-                start from that value; edit in the table if the budget differs.{" "}
+                Both <strong className="font-medium">worked</strong> and{" "}
+                <strong className="font-medium">pre-allocated</strong> start from that value; edit in
+                the table if the budget differs.{" "}
                 <strong className="font-medium">Notes</strong> are only in the table below.
               </p>
               <div className="mt-3">
@@ -1011,9 +1011,8 @@ export function ReportForm({
                   onAddFromClickUp={(task, total, worked) => {
                     setError(null);
                     const cap = Math.max(0, total);
-                    const raw =
-                      worked === undefined || worked === null ? cap : worked;
-                    const w = Math.min(Math.max(0, raw), cap);
+                    const raw = worked === undefined || worked === null ? cap : worked;
+                    const w = Math.max(0, raw);
                     setLineItems((rows) => [
                       ...rows,
                       {
@@ -1075,7 +1074,7 @@ export function ReportForm({
               </div>
               <div className={`${MANUAL_FIELD_WRAP} sm:col-span-6 md:col-span-2`}>
                 <label htmlFor="manual-total" className={MANUAL_FIELD_LABEL}>
-                  Total hours
+                  Pre-allocated hours
                 </label>
                 <input
                   id="manual-total"
@@ -1131,7 +1130,7 @@ export function ReportForm({
                   <tr className="border-b border-zinc-200 bg-zinc-50/80 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:bg-surface/55">
                     <th className="px-3 py-2.5 font-medium">Task</th>
                     <th className="w-24 px-3 py-2.5 font-medium">Worked</th>
-                    <th className="w-24 px-3 py-2.5 font-medium">Total</th>
+                    <th className="w-24 px-3 py-2.5 font-medium">Pre-allocated</th>
                     <th className="min-w-[200px] px-3 py-2.5 font-medium">Notes</th>
                     <th className="w-24 px-3 py-2.5 font-medium" />
                   </tr>
@@ -1162,7 +1161,7 @@ export function ReportForm({
                           onChange={(e) => {
                             const w = Number(e.target.value) || 0;
                             updateLine(row.id, {
-                              hoursWorked: Math.min(Math.max(0, w), row.hours),
+                              hoursWorked: Math.max(0, w),
                             });
                           }}
                         />
@@ -1178,7 +1177,6 @@ export function ReportForm({
                             const total = Number(e.target.value) || 0;
                             updateLine(row.id, {
                               hours: total,
-                              hoursWorked: Math.min(resolvedWorked(row), total),
                             });
                           }}
                         />
@@ -1220,7 +1218,7 @@ export function ReportForm({
             </span>
           </div>
           <div>
-            <span className="text-zinc-500">Total (planned)</span>
+            <span className="text-zinc-500">Pre-allocated total</span>
             <span className="ml-4 text-base font-semibold tabular-nums text-zinc-700 dark:text-zinc-200">
               {formatHours(plannedSum)} hrs
             </span>

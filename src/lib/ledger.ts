@@ -55,7 +55,7 @@ function parseLineItems(raw: unknown): LineItem[] {
       if (o.hoursWorked !== undefined && o.hoursWorked !== null && o.hoursWorked !== "") {
         const w = Number(o.hoursWorked);
         if (Number.isFinite(w)) {
-          hoursWorked = Math.min(Math.max(0, w), hours);
+          hoursWorked = Math.max(0, w);
         }
       }
       return {

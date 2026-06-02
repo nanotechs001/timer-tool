@@ -16,16 +16,6 @@ export const lineItemSchema = z
       const s = String(v).trim();
       return s === "" ? undefined : s;
     }, z.string().max(4000).optional()),
-  })
-  .superRefine((row, ctx) => {
-    if (row.hoursWorked === undefined) return;
-    if (row.hoursWorked > row.hours) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Worked hours cannot exceed total hours",
-        path: ["hoursWorked"],
-      });
-    }
   });
 
 export const createClientSchema = z.object({

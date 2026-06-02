@@ -81,7 +81,7 @@ export function totalPlannedHours(items: LineItem[]): number {
 export function lineHoursWorked(item: LineItem): number {
   if (item.hoursWorked !== undefined && item.hoursWorked !== null) {
     const w = Number(item.hoursWorked);
-    if (Number.isFinite(w)) return Math.min(Math.max(0, w), item.hours || 0);
+    if (Number.isFinite(w)) return Math.max(0, w);
   }
   return item.hours || 0;
 }
