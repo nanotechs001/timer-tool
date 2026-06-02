@@ -896,16 +896,22 @@ export function ReportForm({
               ? "Password is currently enabled. Set a new password or remove protection below."
               : "Set a password to require access before someone can view this report link."}
           </span>
-          <input
-            type="password"
-            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-4 focus:ring-brand/25 dark:border-zinc-800 dark:bg-surface"
-            value={accessPassword}
-            onChange={(e) => {
-              setAccessPassword(e.target.value);
-              if (e.target.value.trim()) setClearAccessPassword(false);
-            }}
-            placeholder={hasPublicPassword ? "Leave blank to keep current password" : "Set password"}
-          />
+          {!clearAccessPassword ? (
+            <input
+              type="text"
+              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-4 focus:ring-brand/25 dark:border-zinc-800 dark:bg-surface"
+              value={accessPassword}
+              onChange={(e) => {
+                setAccessPassword(e.target.value);
+                if (e.target.value.trim()) setClearAccessPassword(false);
+              }}
+              placeholder={hasPublicPassword ? "Leave blank to keep current password" : "Set password"}
+            />
+          ) : (
+            <p className="rounded-lg border border-amber-200/80 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+              Password input is hidden. Saving will remove password protection from this report link.
+            </p>
+          )}
           {mode === "edit" && hasPublicPassword ? (
             <label className="mt-2 inline-flex cursor-pointer items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
               <input
