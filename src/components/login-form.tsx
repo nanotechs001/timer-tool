@@ -98,21 +98,16 @@ export function LoginForm({ variant = "standalone" }: LoginFormProps) {
     }
     setResetBusy(true);
     try {
-      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const key =
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-      if (!url || !key) {
-        throw new Error("App is missing NEXT_PUBLIC_SUPABASE_URL or anon/publishable key.");
-      }
-      const supabase = createBrowserClient(url, key);
-      const { error: resetErr } = await supabase.auth.resetPasswordForEmail(trimmed, {
-        redirectTo: `${window.location.origin}/login`,
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmed }),
       });
-      if (resetErr) throw new Error(resetErr.message);
-      setNotice(
-        "If this email exists, a password reset link was sent. Check your inbox and spam folder."
-      );
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        throw new Error(data.error || "Could not send password reset email");
+      }
+      setNotice("Password reset link sent. Check your inbox.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not send password reset email");
     } finally {
