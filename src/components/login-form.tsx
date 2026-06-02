@@ -23,7 +23,9 @@ export function LoginForm({ variant = "standalone" }: LoginFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [loginSuccess, setLoginSuccess] = useState(false);
 
   useEffect(() => {
@@ -53,6 +55,7 @@ export function LoginForm({ variant = "standalone" }: LoginFormProps) {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    setNotice(null);
     setBusy(true);
     try {
       const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -85,6 +88,38 @@ export function LoginForm({ variant = "standalone" }: LoginFormProps) {
     }
   }
 
+  async function onForgotPassword() {
+    setError(null);
+    setNotice(null);
+    const trimmed = email.trim();
+    if (!trimmed) {
+      setError("Enter your email first, then click Forgot password.");
+      return;
+    }
+    setResetBusy(true);
+    try {
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const key =
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+      if (!url || !key) {
+        throw new Error("App is missing NEXT_PUBLIC_SUPABASE_URL or anon/publishable key.");
+      }
+      const supabase = createBrowserClient(url, key);
+      const { error: resetErr } = await supabase.auth.resetPasswordForEmail(trimmed, {
+        redirectTo: `${window.location.origin}/login`,
+      });
+      if (resetErr) throw new Error(resetErr.message);
+      setNotice(
+        "If this email exists, a password reset link was sent. Check your inbox and spam folder."
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send password reset email");
+    } finally {
+      setResetBusy(false);
+    }
+  }
+
   const fields = (
     <>
       {error ? (
@@ -93,6 +128,14 @@ export function LoginForm({ variant = "standalone" }: LoginFormProps) {
           className="rounded-lg border border-red-200/80 bg-red-50 px-3.5 py-3 text-sm leading-snug text-red-900 dark:border-red-900/50 dark:bg-red-950/35 dark:text-red-100"
         >
           {error}
+        </div>
+      ) : null}
+      {notice ? (
+        <div
+          role="status"
+          className="rounded-lg border border-emerald-200/80 bg-emerald-50 px-3.5 py-3 text-sm leading-snug text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/35 dark:text-emerald-100"
+        >
+          {notice}
         </div>
       ) : null}
       <div className="space-y-2">
@@ -111,9 +154,22 @@ export function LoginForm({ variant = "standalone" }: LoginFormProps) {
         />
       </div>
       <div className="space-y-2">
-        <label htmlFor="login-password" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          Password
-        </label>
+        <div className="flex items-center justify-between gap-2">
+          <label
+            htmlFor="login-password"
+            className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+          >
+            Password
+          </label>
+          <button
+            type="button"
+            onClick={() => void onForgotPassword()}
+            disabled={resetBusy}
+            className="text-xs font-medium text-brand hover:underline disabled:cursor-not-allowed disabled:opacity-50 dark:text-brand-on-dark"
+          >
+            {resetBusy ? "Sending..." : "Forgot password?"}
+          </button>
+        </div>
         <input
           id="login-password"
           type="password"

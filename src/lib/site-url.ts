@@ -45,3 +45,8 @@ export function authCallbackUrl(request: Request | NextRequest): string {
   // Home (`/`) forwards `?code=` to `/auth/callback` for cookie exchange — see `src/app/page.tsx`.
   return `${origin}/`;
 }
+
+export function passwordResetUrl(request: Request | NextRequest): string {
+  const origin = getSiteOriginFromRequest(request).replace(/\/$/, "");
+  return `${origin}/login`;
+}

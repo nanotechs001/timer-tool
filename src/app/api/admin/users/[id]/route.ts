@@ -4,6 +4,7 @@ import {
   jsonError,
   jsonValidation,
 } from "@/lib/api-guard";
+import { passwordResetUrl } from "@/lib/site-url";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { getSessionUser } from "@/lib/supabase/server";
 
@@ -104,4 +105,21 @@ export async function DELETE(_req: Request, ctx: Ctx) {
   const { error } = await sb.auth.admin.deleteUser(id);
   if (error) return jsonError(error.message, 400);
   return new Response(null, { status: 204 });
+}
+
+export async function POST(req: Request, ctx: Ctx) {
+  const denied = await guardAdminOnlyRequest();
+  if (denied) return denied;
+  const { id } = await ctx.params;
+  if (!uuid.safeParse(id).success) return jsonError("Invalid id");
+  const sb = createSupabaseAdmin();
+  const { data: userData, error: userErr } = await sb.auth.admin.getUserById(id);
+  if (userErr) return jsonError(userErr.message, 400);
+  const email = userData.user?.email?.trim();
+  if (!email) return jsonError("User has no email address", 400);
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: passwordResetUrl(req),
+  });
+  if (error) return jsonError(error.message, 400);
+  return Response.json({ ok: true as const });
 }

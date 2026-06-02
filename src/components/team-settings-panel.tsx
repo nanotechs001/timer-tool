@@ -22,6 +22,7 @@ export function TeamSettingsPanel({ currentUserId }: Props) {
   const [email, setEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
   const [busy, setBusy] = useState(false);
+  const [resetBusyUserId, setResetBusyUserId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [userToRemove, setUserToRemove] = useState<{ id: string; label: string } | null>(null);
@@ -108,6 +109,23 @@ export function TeamSettingsPanel({ currentUserId }: Props) {
       await load();
     } finally {
       setRemoveBusy(false);
+    }
+  }
+
+  async function sendPasswordReset(userId: string) {
+    setError(null);
+    setMessage(null);
+    setResetBusyUserId(userId);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(typeof data.error === "string" ? data.error : "Could not send password reset link");
+        return;
+      }
+      setMessage("Password reset link sent.");
+    } finally {
+      setResetBusyUserId(null);
     }
   }
 
@@ -207,7 +225,7 @@ export function TeamSettingsPanel({ currentUserId }: Props) {
                 <tr>
                   <th className="px-4 py-3 font-medium">Email</th>
                   <th className="px-4 py-3 font-medium">Role</th>
-                  <th className="px-4 py-3 text-right font-medium"> </th>
+                  <th className="px-4 py-3 text-right font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -245,19 +263,29 @@ export function TeamSettingsPanel({ currentUserId }: Props) {
                         </select>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button
-                          type="button"
-                          disabled={u.id === currentUserId}
-                          onClick={() =>
-                            setUserToRemove({
-                              id: u.id,
-                              label: u.email?.trim() || u.fullName?.trim() || "This user",
-                            })
-                          }
-                          className="cursor-pointer text-xs font-medium text-red-600 hover:underline disabled:cursor-not-allowed disabled:opacity-40 dark:text-red-400"
-                        >
-                          Remove
-                        </button>
+                        <div className="inline-flex items-center gap-3">
+                          <button
+                            type="button"
+                            disabled={!u.email || resetBusyUserId === u.id}
+                            onClick={() => void sendPasswordReset(u.id)}
+                            className="cursor-pointer text-xs font-medium text-zinc-700 hover:underline disabled:cursor-not-allowed disabled:opacity-40 dark:text-zinc-200"
+                          >
+                            {resetBusyUserId === u.id ? "Sending…" : "Send password reset link"}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={u.id === currentUserId}
+                            onClick={() =>
+                              setUserToRemove({
+                                id: u.id,
+                                label: u.email?.trim() || u.fullName?.trim() || "This user",
+                              })
+                            }
+                            className="cursor-pointer text-xs font-medium text-red-600 hover:underline disabled:cursor-not-allowed disabled:opacity-40 dark:text-red-400"
+                          >
+                            Remove
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
