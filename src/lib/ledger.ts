@@ -1,7 +1,11 @@
 import type { Client, LineItem, Report, ReportSnapshot } from "@/lib/types";
+import { hashReportPassword } from "@/lib/report-access";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
 const REPORT_COLUMNS =
+  "id,slug,title,client_id,line_items,currency,notes,issue_date,due_date,bill_from_name,bill_from_email,report_password_hash,created_by_user_id,created_by_label,created_at,updated_at";
+
+const REPORT_COLUMNS_WITH_CREATOR =
   "id,slug,title,client_id,line_items,currency,notes,issue_date,due_date,bill_from_name,bill_from_email,created_by_user_id,created_by_label,created_at,updated_at";
 
 const REPORT_COLUMNS_LEGACY =
@@ -16,6 +20,11 @@ function isMissingReportCreatorColumnsError(message: string): boolean {
     m.includes("created_by") ||
     (m.includes("schema cache") && m.includes("reports"))
   );
+}
+
+function isMissingReportPasswordColumnError(message: string): boolean {
+  const m = message.toLowerCase();
+  return m.includes("report_password_hash");
 }
 
 function isMissingReportSnapshotsTableError(message: string): boolean {
@@ -114,6 +123,7 @@ function mapReportRow(r: {
   due_date: string | null;
   bill_from_name: string | null;
   bill_from_email: string | null;
+  report_password_hash?: string | null;
   created_by_user_id?: string | null;
   created_by_label?: string | null;
   created_at?: string | null;
@@ -136,6 +146,7 @@ function mapReportRow(r: {
     createdByLabel: r.created_by_label ?? "",
     createdAt,
     updatedAt: (r.updated_at ?? createdAt) || "",
+    hasPublicPassword: Boolean(r.report_password_hash),
   };
 }
 
@@ -360,6 +371,20 @@ export async function listReports(): Promise<Report[]> {
     .select(REPORT_COLUMNS)
     .order("created_at", { ascending: false });
   if (first.error) {
+    if (isMissingReportPasswordColumnError(first.error.message)) {
+      const withoutPassword = await sb
+        .from("reports")
+        .select(REPORT_COLUMNS_WITH_CREATOR)
+        .order("created_at", { ascending: false });
+      if (!withoutPassword.error) {
+        return (withoutPassword.data ?? []).map((r) =>
+          mapReportRow({
+            ...(r as Record<string, unknown>),
+            report_password_hash: null,
+          } as Parameters<typeof mapReportRow>[0])
+        );
+      }
+    }
     if (!isMissingReportCreatorColumnsError(first.error.message)) {
       throw new Error(first.error.message);
     }
@@ -387,6 +412,21 @@ export async function getReport(id: string): Promise<Report | null> {
     .eq("id", id)
     .maybeSingle();
   if (first.error) {
+    if (isMissingReportPasswordColumnError(first.error.message)) {
+      const withoutPassword = await sb
+        .from("reports")
+        .select(REPORT_COLUMNS_WITH_CREATOR)
+        .eq("id", id)
+        .maybeSingle();
+      if (!withoutPassword.error) {
+        return withoutPassword.data
+          ? mapReportRow({
+              ...(withoutPassword.data as Record<string, unknown>),
+              report_password_hash: null,
+            } as Parameters<typeof mapReportRow>[0])
+          : null;
+      }
+    }
     if (!isMissingReportCreatorColumnsError(first.error.message)) {
       throw new Error(first.error.message);
     }
@@ -415,6 +455,21 @@ export async function getReportBySlug(slug: string): Promise<Report | null> {
     .eq("slug", slug)
     .maybeSingle();
   if (first.error) {
+    if (isMissingReportPasswordColumnError(first.error.message)) {
+      const withoutPassword = await sb
+        .from("reports")
+        .select(REPORT_COLUMNS_WITH_CREATOR)
+        .eq("slug", slug)
+        .maybeSingle();
+      if (!withoutPassword.error) {
+        return withoutPassword.data
+          ? mapReportRow({
+              ...(withoutPassword.data as Record<string, unknown>),
+              report_password_hash: null,
+            } as Parameters<typeof mapReportRow>[0])
+          : null;
+      }
+    }
     if (!isMissingReportCreatorColumnsError(first.error.message)) {
       throw new Error(first.error.message);
     }
@@ -433,6 +488,22 @@ export async function getReportBySlug(slug: string): Promise<Report | null> {
       : null;
   }
   return first.data ? mapReportRow(first.data) : null;
+}
+
+export async function getReportPasswordHashBySlug(slug: string): Promise<string | null> {
+  const sb = createSupabaseAdmin();
+  const res = await sb
+    .from("reports")
+    .select("report_password_hash")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (res.error) {
+    if (isMissingReportPasswordColumnError(res.error.message)) return null;
+    throw new Error(res.error.message);
+  }
+  if (!res.data) return null;
+  const row = res.data as { report_password_hash?: string | null };
+  return row.report_password_hash ?? null;
 }
 
 export async function listReportSnapshots(reportId: string): Promise<ReportSnapshot[]> {
@@ -497,6 +568,7 @@ export async function createReport(input: {
   dueDate?: string;
   billFromName?: string;
   billFromEmail?: string;
+  accessPassword?: string;
   createdByUserId?: string | null;
   createdByLabel?: string;
 }): Promise<Report> {
@@ -519,11 +591,24 @@ export async function createReport(input: {
   if (input.createdByLabel != null && input.createdByLabel !== "") {
     insertRow.created_by_label = input.createdByLabel;
   }
+  if (input.accessPassword) {
+    insertRow.report_password_hash = hashReportPassword(input.accessPassword);
+  }
   let ins = await sb.from("reports").insert(insertRow).select(REPORT_COLUMNS).single();
+  if (ins.error && isMissingReportPasswordColumnError(ins.error.message)) {
+    const rowNoPassword = { ...insertRow } as Record<string, unknown>;
+    delete rowNoPassword.report_password_hash;
+    ins = await sb
+      .from("reports")
+      .insert(rowNoPassword)
+      .select(REPORT_COLUMNS_WITH_CREATOR)
+      .single();
+  }
   if (ins.error && isMissingReportCreatorColumnsError(ins.error.message)) {
     const legacyRow = { ...insertRow } as Record<string, unknown>;
     delete legacyRow.created_by_user_id;
     delete legacyRow.created_by_label;
+    delete legacyRow.report_password_hash;
     ins = await sb
       .from("reports")
       .insert(legacyRow)
@@ -536,6 +621,9 @@ export async function createReport(input: {
   if (row.created_by_label === undefined) {
     row.created_by_user_id = null;
     row.created_by_label = "";
+  }
+  if (row.report_password_hash === undefined) {
+    row.report_password_hash = null;
   }
   return mapReportRow(row as Parameters<typeof mapReportRow>[0]);
 }
@@ -552,6 +640,8 @@ export async function updateReport(
     dueDate: string;
     billFromName: string;
     billFromEmail: string;
+    accessPassword: string;
+    clearAccessPassword: boolean;
   }>
 ): Promise<Report> {
   const current = await getReport(id);
@@ -568,39 +658,46 @@ export async function updateReport(
     billFromName: input.billFromName ?? current.billFromName,
     billFromEmail: input.billFromEmail ?? current.billFromEmail,
   };
+  const passwordPatch: { report_password_hash?: string | null } = {};
+  if (input.clearAccessPassword) {
+    passwordPatch.report_password_hash = null;
+  } else if (input.accessPassword) {
+    passwordPatch.report_password_hash = hashReportPassword(input.accessPassword);
+  }
   const sb = createSupabaseAdmin();
+  const basePatch = {
+    title: merged.title,
+    client_id: merged.clientId,
+    line_items: merged.lineItems,
+    currency: merged.currency,
+    notes: merged.notes,
+    issue_date: merged.issueDate,
+    due_date: merged.dueDate,
+    bill_from_name: merged.billFromName,
+    bill_from_email: merged.billFromEmail,
+    updated_at: new Date().toISOString(),
+  };
   let upd = await sb
     .from("reports")
     .update({
-      title: merged.title,
-      client_id: merged.clientId,
-      line_items: merged.lineItems,
-      currency: merged.currency,
-      notes: merged.notes,
-      issue_date: merged.issueDate,
-      due_date: merged.dueDate,
-      bill_from_name: merged.billFromName,
-      bill_from_email: merged.billFromEmail,
-      updated_at: new Date().toISOString(),
+      ...basePatch,
+      ...passwordPatch,
     })
     .eq("id", id)
     .select(REPORT_COLUMNS)
     .single();
+  if (upd.error && isMissingReportPasswordColumnError(upd.error.message)) {
+    upd = await sb
+      .from("reports")
+      .update(basePatch)
+      .eq("id", id)
+      .select(REPORT_COLUMNS_WITH_CREATOR)
+      .single();
+  }
   if (upd.error && isMissingReportCreatorColumnsError(upd.error.message)) {
     upd = await sb
       .from("reports")
-      .update({
-        title: merged.title,
-        client_id: merged.clientId,
-        line_items: merged.lineItems,
-        currency: merged.currency,
-        notes: merged.notes,
-        issue_date: merged.issueDate,
-        due_date: merged.dueDate,
-        bill_from_name: merged.billFromName,
-        bill_from_email: merged.billFromEmail,
-        updated_at: new Date().toISOString(),
-      })
+      .update(basePatch)
       .eq("id", id)
       .select(REPORT_COLUMNS_LEGACY)
       .single();
@@ -611,6 +708,9 @@ export async function updateReport(
   if (row.created_by_label === undefined) {
     row.created_by_user_id = null;
     row.created_by_label = "";
+  }
+  if (row.report_password_hash === undefined) {
+    row.report_password_hash = null;
   }
   return mapReportRow(row as Parameters<typeof mapReportRow>[0]);
 }

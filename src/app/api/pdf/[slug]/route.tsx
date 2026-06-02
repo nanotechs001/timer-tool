@@ -1,7 +1,13 @@
 import { renderToBuffer } from "@react-pdf/renderer";
+import { cookies } from "next/headers";
 import { guardDatabase, jsonError } from "@/lib/api-guard";
-import { getClient, getReportBySlug } from "@/lib/ledger";
+import { getClient, getReportBySlug, getReportPasswordHashBySlug } from "@/lib/ledger";
 import { WorkSummaryPdfDocument } from "@/pdf/work-summary-pdf";
+import { getSessionUser } from "@/lib/supabase/server";
+import {
+  hasValidReportAccessToken,
+  reportAccessCookieName,
+} from "@/lib/report-access";
 
 type Ctx = { params: Promise<{ slug: string }> };
 
@@ -15,6 +21,17 @@ export async function GET(_req: Request, ctx: Ctx) {
   const { slug } = await ctx.params;
   if (!slug) return jsonError("Missing slug");
   try {
+    const passwordHash = await getReportPasswordHashBySlug(slug);
+    if (passwordHash) {
+      const user = await getSessionUser().catch(() => null);
+      if (!user?.id) {
+        const cookieStore = await cookies();
+        const cookie = cookieStore.get(reportAccessCookieName(slug))?.value;
+        if (!hasValidReportAccessToken(slug, passwordHash, cookie)) {
+          return jsonError("Password required", 401);
+        }
+      }
+    }
     const report = await getReportBySlug(slug);
     if (!report) return jsonError("Not found", 404);
     const client = report.clientId ? await getClient(report.clientId) : null;

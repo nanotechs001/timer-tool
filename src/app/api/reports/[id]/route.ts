@@ -89,6 +89,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
       dueDate: d.dueDate,
       billFromName: d.billFromName,
       billFromEmail: d.billFromEmail,
+      accessPassword: d.accessPassword,
+      clearAccessPassword: d.clearAccessPassword,
     });
     return Response.json(report);
   } catch (e) {

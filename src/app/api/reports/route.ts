@@ -87,6 +87,7 @@ export async function POST(req: Request) {
       dueDate: d.dueDate,
       billFromName: d.billFromName,
       billFromEmail: d.billFromEmail === "" ? undefined : d.billFromEmail,
+      accessPassword: d.accessPassword,
       createdByUserId: user.id,
       createdByLabel,
     });

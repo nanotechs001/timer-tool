@@ -46,6 +46,8 @@ export type Report = {
   createdAt: string;
   /** ISO timestamp from DB `updated_at` (falls back to `createdAt` if missing). */
   updatedAt: string;
+  /** True when this public share link is protected by a password. */
+  hasPublicPassword: boolean;
 };
 
 export type ReportSnapshot = {

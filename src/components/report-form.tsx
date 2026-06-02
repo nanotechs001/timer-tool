@@ -169,6 +169,11 @@ export function ReportForm({
   }, [initial]);
   const [fromName, setFromName] = useState(initial?.billFromName ?? "");
   const [fromEmail, setFromEmail] = useState(initial?.billFromEmail ?? "");
+  const [hasPublicPassword, setHasPublicPassword] = useState(
+    Boolean(initial?.hasPublicPassword)
+  );
+  const [accessPassword, setAccessPassword] = useState("");
+  const [clearAccessPassword, setClearAccessPassword] = useState(false);
   const [lineItems, setLineItems] = useState<LineItem[]>(() =>
     normalizeFormLineItems(initial?.lineItems)
   );
@@ -263,7 +268,9 @@ export function ReportForm({
     JSON.stringify(captureDraft())
   );
   const currentSignature = draftSignature();
-  const isDirty = mode === "edit" ? currentSignature !== lastSavedSignature : true;
+  const passwordDirty = Boolean(accessPassword.trim()) || clearAccessPassword;
+  const isDirty =
+    mode === "edit" ? currentSignature !== lastSavedSignature || passwordDirty : true;
   const totalSnapshotPages = Math.max(1, Math.ceil(snapshots.length / SNAPSHOT_PAGE_SIZE));
   const snapshotPage = Math.min(snapshotsPage, totalSnapshotPages);
   const pagedSnapshots = useMemo(() => {
@@ -274,6 +281,9 @@ export function ReportForm({
   useEffect(() => {
     const base = captureDraft();
     setLastSavedSignature(JSON.stringify(base));
+    setHasPublicPassword(Boolean(initial?.hasPublicPassword));
+    setAccessPassword("");
+    setClearAccessPassword(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initial?.id]);
 
@@ -450,6 +460,8 @@ export function ReportForm({
         dueDate,
         billFromName: draft.fromName,
         billFromEmail: draft.fromEmail,
+        accessPassword: accessPassword.trim() || undefined,
+        clearAccessPassword: clearAccessPassword || undefined,
       };
 
       if (mode === "create") {
@@ -476,6 +488,9 @@ export function ReportForm({
           title: title.trim() || "Summary",
           publicUrl: buildPublicReportUrl(slug),
         });
+        setHasPublicPassword(Boolean(accessPassword.trim()));
+        setAccessPassword("");
+        setClearAccessPassword(false);
         router.refresh();
       } else if (initial) {
         const res = await fetch(`/api/reports/${initial.id}`, {
@@ -492,6 +507,13 @@ export function ReportForm({
           );
         }
         setLastSavedSignature(JSON.stringify(draft));
+        if (clearAccessPassword) {
+          setHasPublicPassword(false);
+        } else if (accessPassword.trim()) {
+          setHasPublicPassword(true);
+        }
+        setAccessPassword("");
+        setClearAccessPassword(false);
         if (snapshotsOpen) {
           void fetchSnapshots();
         }
@@ -864,6 +886,40 @@ export function ReportForm({
             onChange={(e) => setNotes(e.target.value)}
             placeholder="e.g. What shipped, what’s next, or anything you want them to remember."
           />
+        </label>
+        <label className="block sm:col-span-2">
+          <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Public link password (optional)
+          </span>
+          <span className="mb-1.5 block text-[11px] leading-snug text-zinc-500 dark:text-zinc-400">
+            {hasPublicPassword
+              ? "Password is currently enabled. Set a new password or remove protection below."
+              : "Set a password to require access before someone can view this report link."}
+          </span>
+          <input
+            type="password"
+            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-4 focus:ring-brand/25 dark:border-zinc-800 dark:bg-surface"
+            value={accessPassword}
+            onChange={(e) => {
+              setAccessPassword(e.target.value);
+              if (e.target.value.trim()) setClearAccessPassword(false);
+            }}
+            placeholder={hasPublicPassword ? "Leave blank to keep current password" : "Set password"}
+          />
+          {mode === "edit" && hasPublicPassword ? (
+            <label className="mt-2 inline-flex cursor-pointer items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+              <input
+                type="checkbox"
+                checked={clearAccessPassword}
+                onChange={(e) => {
+                  setClearAccessPassword(e.target.checked);
+                  if (e.target.checked) setAccessPassword("");
+                }}
+                className="h-4 w-4 rounded border-zinc-300 text-brand focus:ring-brand/30 dark:border-zinc-700"
+              />
+              Remove password protection
+            </label>
+          ) : null}
         </label>
       </div>
 

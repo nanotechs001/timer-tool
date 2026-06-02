@@ -64,6 +64,12 @@ export const createReportSchema = z.object({
     const s = String(v).trim();
     return s === "" ? undefined : s;
   }, z.string().max(320).optional()),
+  accessPassword: z.preprocess((v) => {
+    if (v === undefined || v === null) return undefined;
+    const s = String(v).trim();
+    return s === "" ? undefined : s;
+  }, z.string().min(4, "Password must be at least 4 characters").max(128).optional()),
+  clearAccessPassword: z.boolean().optional(),
 });
 
 export const updateReportSchema = createReportSchema.partial();
