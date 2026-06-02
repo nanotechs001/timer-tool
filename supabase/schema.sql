@@ -26,6 +26,7 @@ create table if not exists public.reports (
   bill_from_name text not null default '',
   bill_from_email text not null default '',
   report_password_hash text,
+  report_password_plain text,
   created_by_user_id uuid references auth.users (id) on delete set null,
   created_by_label text not null default '',
   created_at timestamptz not null default now(),

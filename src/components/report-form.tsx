@@ -23,6 +23,7 @@ type Props = {
   clients: Client[];
   mode: "create" | "edit";
   initial?: Report;
+  initialAccessPassword?: string | null;
   /** Only admins may delete a summary (API enforces this too). */
   canDelete?: boolean;
 };
@@ -135,6 +136,7 @@ export function ReportForm({
   clients,
   mode,
   initial,
+  initialAccessPassword = null,
   canDelete = false,
 }: Props) {
   const router = useRouter();
@@ -172,7 +174,12 @@ export function ReportForm({
   const [hasPublicPassword, setHasPublicPassword] = useState(
     Boolean(initial?.hasPublicPassword)
   );
-  const [accessPassword, setAccessPassword] = useState("");
+  const [savedAccessPassword, setSavedAccessPassword] = useState(
+    initialAccessPassword?.trim() ?? ""
+  );
+  const [accessPassword, setAccessPassword] = useState(
+    initialAccessPassword?.trim() ?? ""
+  );
   const [clearAccessPassword, setClearAccessPassword] = useState(false);
   const [lineItems, setLineItems] = useState<LineItem[]>(() =>
     normalizeFormLineItems(initial?.lineItems)
@@ -268,7 +275,7 @@ export function ReportForm({
     JSON.stringify(captureDraft())
   );
   const currentSignature = draftSignature();
-  const passwordDirty = Boolean(accessPassword.trim()) || clearAccessPassword;
+  const passwordDirty = clearAccessPassword || accessPassword.trim() !== savedAccessPassword;
   const isDirty =
     mode === "edit" ? currentSignature !== lastSavedSignature || passwordDirty : true;
   const totalSnapshotPages = Math.max(1, Math.ceil(snapshots.length / SNAPSHOT_PAGE_SIZE));
@@ -282,10 +289,12 @@ export function ReportForm({
     const base = captureDraft();
     setLastSavedSignature(JSON.stringify(base));
     setHasPublicPassword(Boolean(initial?.hasPublicPassword));
-    setAccessPassword("");
+    const currentPassword = initialAccessPassword?.trim() ?? "";
+    setSavedAccessPassword(currentPassword);
+    setAccessPassword(currentPassword);
     setClearAccessPassword(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initial?.id]);
+  }, [initial?.id, initialAccessPassword]);
 
   async function fetchSnapshots() {
     if (mode !== "edit" || !initial) return;
@@ -449,6 +458,8 @@ export function ReportForm({
       }
 
       const draft = captureDraft();
+      const trimmedAccessPassword = accessPassword.trim();
+      const accessPasswordChanged = trimmedAccessPassword !== savedAccessPassword;
       const payload = {
         title: draft.title,
         clientId: draft.clientId === "" ? null : draft.clientId,
@@ -459,7 +470,10 @@ export function ReportForm({
         dueDate,
         billFromName: draft.fromName,
         billFromEmail: draft.fromEmail,
-        accessPassword: accessPassword.trim() || undefined,
+        accessPassword:
+          !clearAccessPassword && accessPasswordChanged && trimmedAccessPassword
+            ? trimmedAccessPassword
+            : undefined,
         clearAccessPassword: clearAccessPassword || undefined,
       };
 
@@ -487,8 +501,9 @@ export function ReportForm({
           title: title.trim() || "Summary",
           publicUrl: buildPublicReportUrl(slug),
         });
-        setHasPublicPassword(Boolean(accessPassword.trim()));
-        setAccessPassword("");
+        setHasPublicPassword(Boolean(trimmedAccessPassword));
+        setSavedAccessPassword(trimmedAccessPassword);
+        setAccessPassword(trimmedAccessPassword);
         setClearAccessPassword(false);
         router.refresh();
       } else if (initial) {
@@ -508,10 +523,13 @@ export function ReportForm({
         setLastSavedSignature(JSON.stringify(draft));
         if (clearAccessPassword) {
           setHasPublicPassword(false);
-        } else if (accessPassword.trim()) {
+          setSavedAccessPassword("");
+          setAccessPassword("");
+        } else if (trimmedAccessPassword && accessPasswordChanged) {
           setHasPublicPassword(true);
+          setSavedAccessPassword(trimmedAccessPassword);
+          setAccessPassword(trimmedAccessPassword);
         }
-        setAccessPassword("");
         setClearAccessPassword(false);
         if (snapshotsOpen) {
           void fetchSnapshots();
@@ -892,7 +910,7 @@ export function ReportForm({
           </span>
           <span className="mb-1.5 block text-[11px] leading-snug text-zinc-500 dark:text-zinc-400">
             {hasPublicPassword
-              ? "Password is currently enabled. Set a new password or remove protection below."
+              ? "Password is currently enabled. The current password is shown below."
               : "Set a password to require access before someone can view this report link."}
           </span>
           {!clearAccessPassword ? (
@@ -904,7 +922,11 @@ export function ReportForm({
                 setAccessPassword(e.target.value);
                 if (e.target.value.trim()) setClearAccessPassword(false);
               }}
-              placeholder={hasPublicPassword ? "Leave blank to keep current password" : "Set password"}
+              placeholder={
+                hasPublicPassword && !savedAccessPassword
+                  ? "Current password unavailable until DB migration is applied"
+                  : "Set password"
+              }
             />
           ) : (
             <p className="rounded-lg border border-amber-200/80 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">

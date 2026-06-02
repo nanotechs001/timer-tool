@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { isDatabaseConfigured } from "@/lib/config";
-import { getReport, listClients } from "@/lib/ledger";
+import { getReport, getReportPasswordPlainById, listClients } from "@/lib/ledger";
 import { getViewerIsAdmin } from "@/lib/viewer";
 import { ReportForm } from "@/components/report-form";
 import { resolveShareBase } from "@/lib/share-base";
@@ -28,10 +28,11 @@ export default async function EditReportPage({ params, searchParams }: Props) {
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   if (!uuid.safeParse(id).success) notFound();
 
-  const [report, clients, shareBase] = await Promise.all([
+  const [report, clients, shareBase, initialAccessPassword] = await Promise.all([
     getReport(id),
     listClients().catch(() => []),
     resolveShareBase(),
+    getReportPasswordPlainById(id).catch(() => null),
   ]);
 
   if (!report) notFound();
@@ -84,6 +85,7 @@ export default async function EditReportPage({ params, searchParams }: Props) {
         clients={clients}
         mode="edit"
         initial={report}
+        initialAccessPassword={initialAccessPassword}
         canDelete={canDelete}
       />
     </div>
