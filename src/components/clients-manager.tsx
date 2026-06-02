@@ -62,7 +62,7 @@ export function ClientsManager({ initialClients, isAdmin = false }: Props) {
     e.preventDefault();
     if (!editingId) return;
     if (!editCompany.trim()) {
-      setError("Company is required.");
+      setError("Client is required.");
       return;
     }
     setBusy(true);
@@ -101,7 +101,7 @@ export function ClientsManager({ initialClients, isAdmin = false }: Props) {
     e.preventDefault();
     setError(null);
     if (!company.trim()) {
-      setError("Company is required.");
+      setError("Client is required.");
       return;
     }
     setBusy(true);
@@ -193,12 +193,12 @@ export function ClientsManager({ initialClients, isAdmin = false }: Props) {
         <div className="mt-4 space-y-4">
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Company <span className="text-red-600 dark:text-red-400">*</span>
+              Client <span className="text-red-600 dark:text-red-400">*</span>
             </span>
             <input
               required
               className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm dark:border-zinc-800 dark:bg-zinc-900"
-              placeholder="Company name"
+              placeholder="Client name"
               value={company}
               onChange={(e) => {
                 setCompany(e.target.value);
@@ -231,10 +231,10 @@ export function ClientsManager({ initialClients, isAdmin = false }: Props) {
           </label>
           <div>
             <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Set company from ClickUp <span className="font-normal text-zinc-400">(optional)</span>
+              Set client from ClickUp <span className="font-normal text-zinc-400">(optional)</span>
             </span>
             <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
-              Picks a folder or list and fills <strong className="font-medium">Company</strong> with that
+              Picks a folder or list and fills <strong className="font-medium">Client</strong> with that
               name. Also saves the ClickUp path for task import when you run the database migration.
             </p>
             <ClickUpChannelSearchButton
@@ -298,7 +298,7 @@ export function ClientsManager({ initialClients, isAdmin = false }: Props) {
                     >
                       <label className="block">
                         <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                          Company <span className="text-red-600 dark:text-red-400">*</span>
+                          Client <span className="text-red-600 dark:text-red-400">*</span>
                         </span>
                         <input
                           required
@@ -347,7 +347,7 @@ export function ClientsManager({ initialClients, isAdmin = false }: Props) {
                           Update ClickUp link (optional)
                         </span>
                         <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
-                          Pick a folder or list to refresh company name and saved ClickUp path. Leave
+                          Pick a folder or list to refresh client name and saved ClickUp path. Leave
                           untouched to keep the current link.
                         </p>
                         <ClickUpChannelSearchButton

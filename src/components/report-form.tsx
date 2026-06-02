@@ -805,7 +805,7 @@ export function ReportForm({
             })}
           </select>
           <p className="mt-1.5 text-xs text-zinc-500">
-            On the Clients page, link <strong className="font-medium text-zinc-600 dark:text-zinc-400">company</strong> to a ClickUp folder or list. With the DB migration applied, picking that client here pre-fills task import to their path.
+            On the Clients page, link <strong className="font-medium text-zinc-600 dark:text-zinc-400">client</strong> to a ClickUp folder or list. With the DB migration applied, picking that client here pre-fills task import to their path.
           </p>
         </label>
         <div className="block sm:col-span-2">
@@ -997,7 +997,7 @@ export function ReportForm({
               </p>
               <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
                 Go <strong className="font-medium">Workspace → Folder → List → Task</strong> (folder
-                rows match company search), review <strong className="font-medium">hours</strong> from
+                rows match client search), review <strong className="font-medium">hours</strong> from
                 ClickUp when available, then <strong className="font-medium">Add row from this task</strong>.{" "}
                 Both <strong className="font-medium">worked</strong> and{" "}
                 <strong className="font-medium">pre-allocated</strong> start from that value; edit in

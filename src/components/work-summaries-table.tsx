@@ -199,7 +199,7 @@ export function WorkSummariesTable({
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Company, contact, or task…"
+            placeholder="Client, contact, or task…"
               className="w-full cursor-text rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/30 dark:border-zinc-600 dark:bg-surface"
           />
         </label>
@@ -333,7 +333,7 @@ export function WorkSummariesTable({
       />
       <ConfirmDialog
         open={folderToDelete !== null}
-        title="Delete company folder?"
+        title="Delete client folder?"
         description={
           folderToDelete
             ? `This permanently deletes “${folderToDelete.label}” and all ${folderToDelete.count} ${
@@ -356,7 +356,7 @@ export function WorkSummariesTable({
           <>
             <div className="border-b border-zinc-100 px-4 py-3 dark:border-zinc-800">
               <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                Companies
+                Clients
               </h2>
               <p className="mt-0.5 text-xs text-zinc-500">
                 Open a folder to see summaries. Use search and dates to narrow the list.
@@ -468,7 +468,7 @@ export function WorkSummariesTable({
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                 </svg>
-                All companies
+                All clients
               </button>
               <span className="text-zinc-300 dark:text-zinc-600" aria-hidden>
                 /

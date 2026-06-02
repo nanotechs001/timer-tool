@@ -12,7 +12,7 @@ import {
 } from "@/lib/clickup/browser-cache";
 
 export type ClientLocationPick = {
-  /** Folder or list title — used as the client’s company name. */
+  /** Folder or list title — used as the client name. */
   clientName: string;
   teamId: string;
   spaceId: string;
@@ -29,7 +29,7 @@ function asChannelRows(raw: unknown): ChannelRow[] {
 }
 
 type Props = {
-  /** Fills company name and stores ClickUp ids for task import (after DB migration). */
+  /** Fills client name and stores ClickUp ids for task import (after DB migration). */
   onPick: (pick: ClientLocationPick) => void;
   buttonClassName?: string;
 };
@@ -169,7 +169,7 @@ export function ClickUpChannelSearchButton({
         onClick={() => setOpen(true)}
         className={`w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-xs font-medium text-zinc-700 shadow-sm hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800 sm:w-auto sm:min-w-[12rem] ${buttonClassName}`}
       >
-        Search ClickUp for company…
+        Search ClickUp for client…
       </button>
 
       {open ? (
@@ -192,7 +192,7 @@ export function ClickUpChannelSearchButton({
                   id="clickup-channel-search-title"
                   className="text-base font-semibold text-zinc-900 dark:text-zinc-50"
                 >
-                  Company from ClickUp
+                  Client from ClickUp
                 </h2>
                 <div className="flex shrink-0 items-center gap-2">
                   <button
@@ -208,7 +208,7 @@ export function ClickUpChannelSearchButton({
               </div>
               <p className="mt-0.5 text-xs text-zinc-500">
                 Choose a <strong className="font-medium">folder</strong> or{" "}
-                <strong className="font-medium">list</strong>. We fill <strong className="font-medium">Company</strong>{" "}
+                <strong className="font-medium">list</strong>. We fill <strong className="font-medium">Client</strong>{" "}
                 and store the ClickUp path for task import (requires ClickUp columns on{" "}
                 <code className="rounded bg-zinc-100 px-0.5 text-[10px] dark:bg-zinc-800">clients</code>).{" "}
                 Locations stay cached while you work; use <strong className="font-medium">Sync</strong> for a fresh pull

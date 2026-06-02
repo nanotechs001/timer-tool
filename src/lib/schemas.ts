@@ -22,7 +22,7 @@ export const createClientSchema = z.object({
   /** Optional contact name; stored `name` defaults to company when empty. */
   name: z.string().trim().optional(),
   email: z.union([z.string().trim().email(), z.literal("")]).optional(),
-  company: z.string().trim().min(1, "Company is required"),
+  company: z.string().trim().min(1, "Client is required"),
   notes: z.string().trim().optional(),
   clickupTeamId: z.string().trim().max(64).optional(),
   clickupSpaceId: z.string().trim().max(64).optional(),
