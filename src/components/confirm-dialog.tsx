@@ -71,7 +71,7 @@ export function ConfirmDialog({
       : "bg-brand-soft text-brand dark:bg-brand/20 dark:text-brand-on-dark";
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
       <button
         type="button"
         className="absolute inset-0 cursor-pointer bg-black/50 backdrop-blur-[1px]"
